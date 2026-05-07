@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bis-policy-rate-monitor"
+version = "0.1.0"
+description = "BIS Policy Rate Monitor"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+bis-prates = "bis_prates.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
