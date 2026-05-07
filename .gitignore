@@ -203,6 +203,14 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# BIS Policy Rate Monitor generated cache files
+data/raw/*.json
+data/raw/*.zip
+data/processed/*.csv
+data/processed/*.json
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
 # Ruff stuff:
 .ruff_cache/
 

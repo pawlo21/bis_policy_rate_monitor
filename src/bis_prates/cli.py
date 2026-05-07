@@ -7,6 +7,7 @@ import sys
 from typing import Optional, Sequence
 
 from bis_prates.fetch import BisBulkFetcher
+from bis_prates.transform import PolicyRateTransformer
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -83,6 +84,18 @@ def _fetch(args: argparse.Namespace) -> int:
 
 
 def _transform(args: argparse.Namespace) -> int:
+    try:
+        result = PolicyRateTransformer().transform()
+    except Exception as error:
+        print(f"Transform failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"Transformed raw archive: {result.archive_path}")
+    print(f"Tidy dataset: {result.output_path}")
+    print(f"Transform manifest: {result.manifest_path}")
+    print(f"Rows read: {result.rows_read}")
+    print(f"Rows written: {result.rows_written}")
+    print(f"Duplicates dropped: {result.duplicates_dropped}")
     return 0
 
 
