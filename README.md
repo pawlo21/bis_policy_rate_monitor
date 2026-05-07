@@ -18,3 +18,6 @@ bis-prates fetch
 bis-prates transform
 bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
 ```
+
+`bis-prates fetch` stores the raw ZIP in `data/raw/` and records cache metadata
+in `data/raw/fetch_manifest.json`.

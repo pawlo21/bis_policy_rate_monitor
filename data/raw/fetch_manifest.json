@@ -1,0 +1,13 @@
+{
+  "archive_path": "data/raw/WS_CBPOL_csv_flat.zip",
+  "content_length": 4068239,
+  "dataset": "Central bank policy rates (CSV, flat)",
+  "downloaded_at_utc": "2026-05-07T22:29:32Z",
+  "etag": "W/\"3e138f-19dfccb7d30\"",
+  "last_modified": "Wed, 06 May 2026 10:18:07 GMT",
+  "release_date": "7 May 2026",
+  "sha256": "8936c03dd84898c48dcb6d90cfbf047be4e4c75c42d4daa6d18fb9d2cf7c9662",
+  "size_bytes": 4068239,
+  "source_page": "https://data.bis.org/bulkdownload",
+  "url": "https://data.bis.org/static/bulk/WS_CBPOL_csv_flat.zip"
+}
