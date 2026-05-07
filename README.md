@@ -21,3 +21,7 @@ bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
 
 `bis-prates fetch` stores the raw ZIP in `data/raw/` and records cache metadata
 in `data/raw/fetch_manifest.json`.
+
+`bis-prates transform` uses pandas to read the cached ZIP in chunks and writes a
+tidy CSV to `data/processed/policy_rates_tidy.csv`, with run metadata in
+`data/processed/transform_manifest.json`.
