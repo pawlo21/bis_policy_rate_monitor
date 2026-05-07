@@ -6,6 +6,8 @@ import argparse
 import sys
 from typing import Optional, Sequence
 
+from bis_prates.fetch import BisBulkFetcher
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -61,6 +63,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _fetch(args: argparse.Namespace) -> int:
+    try:
+        result = BisBulkFetcher().fetch()
+    except Exception as error:
+        print(f"Fetch failed: {error}", file=sys.stderr)
+        return 1
+
+    if result.downloaded:
+        print(f"Downloaded {result.dataset.label}: {result.archive_path}")
+    else:
+        print(f"Using cached {result.dataset.label}: {result.archive_path}")
+
+    if result.dataset.release_date:
+        print(f"Release date: {result.dataset.release_date}")
+
+    print(f"Source URL: {result.dataset.url}")
+    print(f"Cache manifest: {result.manifest_path}")
     return 0
 
 
