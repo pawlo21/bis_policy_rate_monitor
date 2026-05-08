@@ -96,11 +96,11 @@ class TransformParsingTest(unittest.TestCase):
 
 
 class PolicyRateTransformerTest(unittest.TestCase):
-    def test_transform_writes_tidy_csv_and_deduplicates_rows(self) -> None:
+    def test_transform_writes_tidy_parquet_and_deduplicates_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             archive_path = root / "raw.zip"
-            output_path = root / "policy_rates_tidy.csv"
+            output_path = root / "policy_rates_tidy.parquet"
             manifest_path = root / "transform_manifest.json"
             missing_path = root / "missing_observations.csv"
 
@@ -127,9 +127,7 @@ class PolicyRateTransformerTest(unittest.TestCase):
                 missing_observations_path=missing_path,
             ).transform()
 
-            with output_path.open("r", encoding="utf-8", newline="") as output_file:
-                output_rows = list(csv.DictReader(output_file))
-
+            output_rows = pd.read_parquet(output_path).to_dict("records")
             with missing_path.open("r", encoding="utf-8", newline="") as missing_file:
                 missing_rows = list(csv.DictReader(missing_file))
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
