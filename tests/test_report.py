@@ -38,6 +38,10 @@ class ReportTest(unittest.TestCase):
             result = PolicyRateReporter(
                 tidy_data_path=tidy_path,
                 output_dir=output_dir,
+                metadata_provider=lambda: {
+                    "US": "United States",
+                    "XM": "Euro area",
+                },
             ).report(countries="US,EA", start="2024-01-01")
 
             summary = pd.read_csv(result.summary_csv_path)
