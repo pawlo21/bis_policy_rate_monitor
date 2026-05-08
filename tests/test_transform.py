@@ -2,18 +2,23 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
+import pandas as pd
+
 from bis_prates.transform import (
     RAW_COLUMNS,
     RAW_CSV_NAME,
     PolicyRateTransformer,
+    find_missing_observations,
     period_to_start_date,
     split_code_label,
     tidy_policy_rate_row,
+    tidy_policy_rate_frame,
 )
 
 
@@ -64,6 +69,31 @@ class TransformParsingTest(unittest.TestCase):
         self.assertEqual(tidy_row["obs_value"], "5.50")
         self.assertEqual(tidy_row["decimals"], "4")
 
+    def test_find_missing_observations(self) -> None:
+        raw_rows = [
+            sample_raw_row(),
+            sample_raw_row(
+                **{
+                    RAW_COLUMNS["time_period"]: "2024-09-21",
+                    RAW_COLUMNS["obs_value"]: "NaN",
+                    RAW_COLUMNS["obs_status"]: "M: Missing value; data cannot exist",
+                }
+            ),
+            sample_raw_row(
+                **{
+                    RAW_COLUMNS["time_period"]: "2024-09-22",
+                    RAW_COLUMNS["obs_value"]: "",
+                }
+            ),
+        ]
+        tidy_frame = tidy_policy_rate_frame(pd.DataFrame(raw_rows))
+        missing_frame = find_missing_observations(tidy_frame)
+
+        self.assertEqual(len(missing_frame), 2)
+        self.assertEqual(
+            list(missing_frame["time_period"]), ["2024-09-21", "2024-09-22"]
+        )
+
 
 class PolicyRateTransformerTest(unittest.TestCase):
     def test_transform_writes_tidy_csv_and_deduplicates_rows(self) -> None:
@@ -72,11 +102,21 @@ class PolicyRateTransformerTest(unittest.TestCase):
             archive_path = root / "raw.zip"
             output_path = root / "policy_rates_tidy.csv"
             manifest_path = root / "transform_manifest.json"
+            missing_path = root / "missing_observations.csv"
 
             rows = [
                 sample_raw_row(),
                 sample_raw_row(),
                 sample_raw_row(**{RAW_COLUMNS["time_period"]: "2024-02"}),
+                sample_raw_row(
+                    **{
+                        RAW_COLUMNS["time_period"]: "2024-09-21",
+                        RAW_COLUMNS["obs_value"]: "NaN",
+                        RAW_COLUMNS["obs_status"]: (
+                            "M: Missing value; data cannot exist"
+                        ),
+                    }
+                ),
             ]
             _write_zip_csv(archive_path, rows)
 
@@ -84,16 +124,26 @@ class PolicyRateTransformerTest(unittest.TestCase):
                 archive_path=archive_path,
                 output_path=output_path,
                 manifest_path=manifest_path,
+                missing_observations_path=missing_path,
             ).transform()
 
             with output_path.open("r", encoding="utf-8", newline="") as output_file:
                 output_rows = list(csv.DictReader(output_file))
 
-            self.assertEqual(result.rows_read, 3)
-            self.assertEqual(result.rows_written, 2)
+            with missing_path.open("r", encoding="utf-8", newline="") as missing_file:
+                missing_rows = list(csv.DictReader(missing_file))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(result.rows_read, 4)
+            self.assertEqual(result.rows_written, 3)
             self.assertEqual(result.duplicates_dropped, 1)
-            self.assertEqual(len(output_rows), 2)
+            self.assertEqual(result.missing_observation_rows, 1)
+            self.assertEqual(len(output_rows), 3)
             self.assertEqual(output_rows[0]["ref_area_code"], "US")
+            self.assertEqual(len(missing_rows), 1)
+            self.assertEqual(missing_rows[0]["obs_status_code"], "M")
+            self.assertEqual(manifest["missing_observation_rows"], 1)
+            self.assertEqual(manifest["missing_observations_path"], str(missing_path))
             self.assertTrue(manifest_path.exists())
 
 

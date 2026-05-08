@@ -17,6 +17,7 @@ DEFAULT_FETCH_MANIFEST_PATH = Path("data/raw/fetch_manifest.json")
 DEFAULT_ARCHIVE_PATH = Path("data/raw/WS_CBPOL_csv_flat.zip")
 DEFAULT_OUTPUT_PATH = Path("data/processed/policy_rates_tidy.csv")
 DEFAULT_MANIFEST_PATH = Path("data/processed/transform_manifest.json")
+DEFAULT_MISSING_OBSERVATIONS_PATH = Path("data/processed/missing_observations.csv")
 RAW_CSV_NAME = "WS_CBPOL_csv_flat.csv"
 DEFAULT_CHUNKSIZE = 100_000
 
@@ -70,6 +71,19 @@ TIDY_COLUMNS = [
     "obs_pre_break",
 ]
 
+MISSING_OBSERVATION_COLUMNS = [
+    "freq_code",
+    "frequency",
+    "ref_area_code",
+    "ref_area",
+    "time_period",
+    "period_start",
+    "obs_value",
+    "obs_status_code",
+    "obs_status",
+    "title",
+]
+
 
 @dataclass(frozen=True)
 class TransformResult:
@@ -79,6 +93,7 @@ class TransformResult:
     rows_read: int
     rows_written: int
     duplicates_dropped: int
+    missing_observation_rows: int
 
 
 class PolicyRateTransformer:
@@ -89,6 +104,7 @@ class PolicyRateTransformer:
         archive_path: Optional[Path] = None,
         output_path: Path = DEFAULT_OUTPUT_PATH,
         manifest_path: Path = DEFAULT_MANIFEST_PATH,
+        missing_observations_path: Path = DEFAULT_MISSING_OBSERVATIONS_PATH,
         fetch_manifest_path: Path = DEFAULT_FETCH_MANIFEST_PATH,
         raw_csv_name: str = RAW_CSV_NAME,
         chunksize: int = DEFAULT_CHUNKSIZE,
@@ -96,6 +112,7 @@ class PolicyRateTransformer:
         self.archive_path = archive_path
         self.output_path = Path(output_path)
         self.manifest_path = Path(manifest_path)
+        self.missing_observations_path = Path(missing_observations_path)
         self.fetch_manifest_path = Path(fetch_manifest_path)
         self.raw_csv_name = raw_csv_name
         self.chunksize = chunksize
@@ -112,7 +129,9 @@ class PolicyRateTransformer:
         rows_read = 0
         rows_written = 0
         duplicates_dropped = 0
+        missing_observation_rows = 0
         wrote_header = False
+        wrote_missing_header = False
 
         with zipfile.ZipFile(archive_path) as archive:
             if self.raw_csv_name not in archive.namelist():
@@ -137,6 +156,7 @@ class PolicyRateTransformer:
                         tidy_chunk, seen_rows
                     )
                     output_chunk = tidy_chunk.loc[keep_mask, TIDY_COLUMNS]
+                    missing_chunk = find_missing_observations(output_chunk)
                     output_chunk.to_csv(
                         self.output_path,
                         mode="w" if not wrote_header else "a",
@@ -147,15 +167,31 @@ class PolicyRateTransformer:
                     wrote_header = True
                     rows_written += len(output_chunk)
                     duplicates_dropped += chunk_duplicates
+                    missing_observation_rows += len(missing_chunk)
+
+                    if not missing_chunk.empty:
+                        missing_chunk.to_csv(
+                            self.missing_observations_path,
+                            mode="w" if not wrote_missing_header else "a",
+                            header=not wrote_missing_header,
+                            index=False,
+                        )
+                        wrote_missing_header = True
 
         if not wrote_header:
             pd.DataFrame(columns=TIDY_COLUMNS).to_csv(self.output_path, index=False)
+
+        if not wrote_missing_header:
+            pd.DataFrame(columns=MISSING_OBSERVATION_COLUMNS).to_csv(
+                self.missing_observations_path, index=False
+            )
 
         self._write_manifest(
             archive_path=archive_path,
             rows_read=rows_read,
             rows_written=rows_written,
             duplicates_dropped=duplicates_dropped,
+            missing_observation_rows=missing_observation_rows,
         )
 
         return TransformResult(
@@ -165,6 +201,7 @@ class PolicyRateTransformer:
             rows_read=rows_read,
             rows_written=rows_written,
             duplicates_dropped=duplicates_dropped,
+            missing_observation_rows=missing_observation_rows,
         )
 
     def _resolve_archive_path(self) -> Path:
@@ -186,6 +223,7 @@ class PolicyRateTransformer:
         rows_read: int,
         rows_written: int,
         duplicates_dropped: int,
+        missing_observation_rows: int,
     ) -> None:
         self.manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest = {
@@ -195,6 +233,8 @@ class PolicyRateTransformer:
             "rows_read": rows_read,
             "rows_written": rows_written,
             "duplicates_dropped": duplicates_dropped,
+            "missing_observation_rows": missing_observation_rows,
+            "missing_observations_path": str(self.missing_observations_path),
             "transformed_at_utc": datetime.now(timezone.utc)
             .replace(microsecond=0)
             .isoformat()
@@ -259,6 +299,13 @@ def tidy_policy_rate_frame(raw_frame: pd.DataFrame) -> pd.DataFrame:
     )
 
     return tidy_frame[TIDY_COLUMNS]
+
+
+def find_missing_observations(tidy_frame: pd.DataFrame) -> pd.DataFrame:
+    obs_value = clean_text_series(tidy_frame["obs_value"])
+    obs_status_code = clean_text_series(tidy_frame["obs_status_code"])
+    missing_mask = obs_value.isin(["", "NaN"]) | obs_status_code.eq("M")
+    return tidy_frame.loc[missing_mask, MISSING_OBSERVATION_COLUMNS]
 
 
 def split_code_label(value: str) -> Tuple[str, str]:

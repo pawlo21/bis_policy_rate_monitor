@@ -24,4 +24,6 @@ in `data/raw/fetch_manifest.json`.
 
 `bis-prates transform` uses pandas to read the cached ZIP in chunks and writes a
 tidy CSV to `data/processed/policy_rates_tidy.csv`, with run metadata in
-`data/processed/transform_manifest.json`.
+`data/processed/transform_manifest.json`. Rows with `obs_value` equal to `""` or
+`"NaN"`, or with `obs_status_code` equal to `"M"`, are also written to
+`data/processed/missing_observations.csv` for review.
