@@ -96,6 +96,7 @@ def _transform(args: argparse.Namespace) -> int:
     print(f"Rows read: {result.rows_read}")
     print(f"Rows written: {result.rows_written}")
     print(f"Duplicates dropped: {result.duplicates_dropped}")
+    print(f"Missing observations logged: {result.missing_observation_rows}")
     return 0
 
 
