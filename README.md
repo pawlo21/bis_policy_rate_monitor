@@ -27,3 +27,13 @@ tidy Parquet dataset to `data/processed/policy_rates_tidy.parquet`, with run met
 `data/processed/transform_manifest.json`. Rows with `obs_value` equal to `""` or
 `"NaN"`, or with `obs_status_code` equal to `"M"`, are also written to
 `data/processed/missing_observations.csv` for review.
+
+`bis-prates report` reads `data/processed/policy_rates_tidy.parquet` and writes
+the required report outputs to `out/`:
+
+```text
+out/summary.csv
+out/summary.json
+out/policy_rates.png
+out/report.html
+```

@@ -7,6 +7,7 @@ import sys
 from typing import Optional, Sequence
 
 from bis_prates.fetch import BisBulkFetcher
+from bis_prates.report import PolicyRateReporter
 from bis_prates.transform import PolicyRateTransformer
 
 
@@ -101,6 +102,20 @@ def _transform(args: argparse.Namespace) -> int:
 
 
 def _report(args: argparse.Namespace) -> int:
+    try:
+        result = PolicyRateReporter().report(
+            countries=args.countries,
+            start=args.start,
+        )
+    except Exception as error:
+        print(f"Report failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"Summary CSV: {result.summary_csv_path}")
+    print(f"Summary JSON: {result.summary_json_path}")
+    print(f"Chart: {result.chart_path}")
+    print(f"HTML report: {result.report_html_path}")
+    print(f"Snapshot rows: {result.rows_written}")
     return 0
 
 

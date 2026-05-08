@@ -1,0 +1,120 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+import pandas as pd
+
+from bis_prates.report import (
+    PolicyRateReporter,
+    parse_country_codes,
+    resolve_country_codes,
+)
+
+
+class ReportTest(unittest.TestCase):
+    def test_parse_country_codes_and_resolve_euro_area_alias(self) -> None:
+        data = pd.DataFrame(
+            {
+                "ref_area_code": ["US", "XM"],
+            }
+        )
+
+        requested = parse_country_codes("US, ea, GB")
+        resolved = resolve_country_codes(["US", "EA"], data)
+
+        self.assertEqual(requested, ["US", "EA", "GB"])
+        self.assertEqual(resolved, {"US": "US", "EA": "XM"})
+
+    def test_report_writes_summary_chart_and_html(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            tidy_path = root / "policy_rates_tidy.parquet"
+            output_dir = root / "out"
+            _write_tidy_fixture(tidy_path)
+
+            result = PolicyRateReporter(
+                tidy_data_path=tidy_path,
+                output_dir=output_dir,
+            ).report(countries="US,EA", start="2024-01-01")
+
+            summary = pd.read_csv(result.summary_csv_path)
+            payload = json.loads(result.summary_json_path.read_text(encoding="utf-8"))
+            report_html = result.report_html_path.read_text(encoding="utf-8")
+
+            us_row = summary[summary["requested_code"].eq("US")].iloc[0]
+            ea_row = summary[summary["requested_code"].eq("EA")].iloc[0]
+
+            self.assertEqual(result.rows_written, 2)
+            self.assertTrue(result.chart_path.exists())
+            self.assertGreater(result.chart_path.stat().st_size, 0)
+            self.assertIn("data:image/png;base64", report_html)
+            self.assertEqual(payload["resolved_countries"]["EA"], "XM")
+            self.assertEqual(len(payload["rows"]), 2)
+            self.assertEqual(us_row["latest_date"], "2024-01-03")
+            self.assertEqual(us_row["latest_rate"], 5.25)
+            self.assertEqual(us_row["previous_rate"], 5.0)
+            self.assertEqual(round(us_row["change_from_previous"], 2), 0.25)
+            self.assertEqual(ea_row["ref_area_code"], "XM")
+
+
+def _write_tidy_fixture(path: Path) -> None:
+    rows = [
+        _row("US", "United States", "2024-01-01", "5.00", "A", "Normal value"),
+        _row(
+            "US",
+            "United States",
+            "2024-01-02",
+            "NaN",
+            "M",
+            "Missing value; data cannot exist",
+        ),
+        _row("US", "United States", "2024-01-03", "5.25", "A", "Normal value"),
+        _row("XM", "Euro area", "2024-01-01", "4.00", "A", "Normal value"),
+        _row("XM", "Euro area", "2024-01-02", "4.50", "A", "Normal value"),
+    ]
+    pd.DataFrame(rows).to_parquet(path, index=False)
+
+
+def _row(
+    ref_area_code: str,
+    ref_area: str,
+    period_start: str,
+    obs_value: str,
+    obs_status_code: str,
+    obs_status: str,
+) -> dict[str, str]:
+    return {
+        "structure": "dataflow",
+        "structure_id": "BIS:WS_CBPOL(1.0): Central bank policy rates",
+        "action": "I",
+        "freq_code": "D",
+        "frequency": "Daily",
+        "ref_area_code": ref_area_code,
+        "ref_area": ref_area,
+        "time_period": period_start,
+        "period_start": period_start,
+        "obs_value": obs_value,
+        "unit_measure_code": "368",
+        "unit_measure": "Per cent per year",
+        "unit_mult_code": "0",
+        "unit_mult": "Units",
+        "decimals": "4",
+        "decimals_label": "Four",
+        "time_format": "",
+        "compilation": "Policy rate.",
+        "source_ref": "Central bank",
+        "supp_info_breaks": "",
+        "title": f"Central bank policy rates - {ref_area} - Daily",
+        "obs_status_code": obs_status_code,
+        "obs_status": obs_status,
+        "obs_conf_code": "F",
+        "obs_conf": "Free",
+        "obs_pre_break": "",
+    }
+
+
+if __name__ == "__main__":
+    unittest.main()
