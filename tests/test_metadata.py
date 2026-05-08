@@ -11,6 +11,7 @@ from bis_prates.metadata import (
     CountryCodeValidationError,
     fetch_reference_area_codes,
     discover_dataflow_reference_from_csv,
+    resolve_raw_archive_path,
     validate_country_codes,
 )
 
@@ -31,6 +32,22 @@ class MetadataTest(unittest.TestCase):
         self.assertEqual(reference.agency, "BIS")
         self.assertEqual(reference.dataflow_id, "WS_CBPOL")
         self.assertEqual(reference.version, "1.0")
+
+    def test_resolve_raw_archive_path_uses_fetch_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            archive_path = root / "downloaded_name.zip"
+            manifest_path = root / "fetch_manifest.json"
+            archive_path.touch()
+            manifest_path.write_text(
+                json.dumps({"archive_path": str(archive_path)}),
+                encoding="utf-8",
+            )
+
+            with patch("bis_prates.metadata.DEFAULT_FETCH_MANIFEST_PATH", manifest_path):
+                resolved = resolve_raw_archive_path()
+
+        self.assertEqual(resolved, archive_path)
 
     def test_fetch_reference_area_codes_falls_back_to_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -38,12 +38,13 @@ out/policy_rates.png
 out/report.html
 ```
 
-Before generating the report, `bis-prates report` reads `STRUCTURE_ID` from the
-downloaded CSV to discover the BIS dataflow, queries its SDMX structure with
-`pysdmx`, then pulls the declared `REF_AREA` codelist and validates the requested
-country or area codes. Invalid codes fail fast with "did you mean" suggestions
-where a close match is available. The downloaded SDMX codelist is cached in
+Before generating the report, `bis-prates report` uses `data/raw/fetch_manifest.json`
+to locate the downloaded archive, reads `STRUCTURE_ID` from the CSV inside it to
+discover the BIS dataflow, queries its SDMX structure with `pysdmx`, then pulls
+the declared `REF_AREA` codelist and validates the requested country or area
+codes. Invalid codes fail fast with "did you mean" suggestions where a close
+match is available. The downloaded SDMX codelist is cached in
 `data/raw/sdmx_ref_area_codes.json` and reused if the BIS metadata service is
 temporarily unavailable. If the live metadata request fails after retries and no
-cache is present, the report still runs and validates requested codes against the
-local processed dataset only.
+cache is present, the report still runs and validates requested codes against
+the local processed dataset only.

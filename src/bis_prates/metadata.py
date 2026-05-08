@@ -29,7 +29,8 @@ from pysdmx.io.json.sdmxjson2.messages.code import JsonCodelistMessage
 log = logging.getLogger(__name__)
 
 BIS_SDMX_API_ENDPOINT = "https://stats.bis.org/api/v2"
-DEFAULT_RAW_ARCHIVE_PATH = Path("data/raw/WS_CBPOL_csv_flat.zip")
+DEFAULT_RAW_DIR = Path("data/raw")
+DEFAULT_FETCH_MANIFEST_PATH = DEFAULT_RAW_DIR / "fetch_manifest.json"
 DEFAULT_METADATA_CACHE_PATH = Path("data/raw/sdmx_ref_area_codes.json")
 DEFAULT_METADATA_ATTEMPTS = 2
 DEFAULT_RETRY_DELAY_SECONDS = 1.0
@@ -70,7 +71,7 @@ class CountryCodeValidationError(ValueError):
 
 
 def fetch_reference_area_codes(
-    archive_path: Path = DEFAULT_RAW_ARCHIVE_PATH,
+    archive_path: Optional[Path] = None,
     timeout: float = 20.0,
     cache_path: Path = DEFAULT_METADATA_CACHE_PATH,
     attempts: int = DEFAULT_METADATA_ATTEMPTS,
@@ -118,12 +119,13 @@ def fetch_reference_area_codes(
 
 
 def _fetch_reference_area_codes_live(
-    archive_path: Path,
+    archive_path: Optional[Path],
     timeout: float,
     cache_path: Path,
 ) -> Dict[str, str]:
-    log.info("Discovering BIS SDMX dataflow from %s", archive_path)
-    dataflow = discover_dataflow_reference_from_csv(archive_path)
+    resolved_archive_path = resolve_raw_archive_path(archive_path)
+    log.info("Discovering BIS SDMX dataflow from %s", resolved_archive_path)
+    dataflow = discover_dataflow_reference_from_csv(resolved_archive_path)
     log.info(
         "Discovered SDMX dataflow %s:%s(%s)",
         dataflow.agency,
@@ -166,9 +168,10 @@ def fetch_codelist_codes(
 
 
 def discover_dataflow_reference_from_csv(
-    archive_path: Path = DEFAULT_RAW_ARCHIVE_PATH,
+    archive_path: Optional[Path] = None,
 ) -> SdmxDataflowReference:
     """Read STRUCTURE_ID from the downloaded BIS flat CSV."""
+    archive_path = resolve_raw_archive_path(archive_path)
     with zipfile.ZipFile(archive_path) as archive:
         csv_name = _largest_csv_name(archive)
         log.info("Reading SDMX STRUCTURE_ID from %s inside %s", csv_name, archive_path)
@@ -185,6 +188,29 @@ def discover_dataflow_reference_from_csv(
 
     agency, dataflow_id, version = match.groups()
     return SdmxDataflowReference(agency, dataflow_id, version)
+
+
+def resolve_raw_archive_path(archive_path: Optional[Path] = None) -> Path:
+    if archive_path is not None:
+        return Path(archive_path)
+
+    if DEFAULT_FETCH_MANIFEST_PATH.exists():
+        manifest = json.loads(DEFAULT_FETCH_MANIFEST_PATH.read_text(encoding="utf-8"))
+        manifest_archive_path = manifest.get("archive_path")
+        if manifest_archive_path:
+            return Path(str(manifest_archive_path))
+
+    zip_paths = sorted(DEFAULT_RAW_DIR.glob("*.zip"))
+    if len(zip_paths) == 1:
+        return zip_paths[0]
+    if not zip_paths:
+        raise FileNotFoundError(
+            "No raw BIS archive found. Run `bis-prates fetch` first."
+        )
+    raise FileExistsError(
+        "Multiple raw ZIP archives found and no fetch manifest identifies which one "
+        f"to use: {', '.join(str(path) for path in zip_paths)}"
+    )
 
 
 def discover_ref_area_codelist(
