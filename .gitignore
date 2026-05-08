@@ -2,6 +2,7 @@
 __pycache__/
 *.py[codz]
 *$py.class
+.DS_Store
 
 # C extensions
 *.so
@@ -208,6 +209,7 @@ data/raw/*.json
 data/raw/*.zip
 data/processed/*.csv
 data/processed/*.json
+data/processed/*.parquet
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
