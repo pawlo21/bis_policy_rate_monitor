@@ -9,6 +9,7 @@ from typing import Optional, Sequence
 
 from bis_prates.fetch import BisBulkFetcher
 from bis_prates.report import PolicyRateReporter
+from bis_prates.speeches import build_speeches_analysis
 from bis_prates.transform import PolicyRateTransformer
 
 
@@ -63,6 +64,16 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="YYYY-MM-DD",
         help='start date for the report time series, for example "2015-01-01"',
     )
+    report_parser.add_argument(
+        "--speeches",
+        default=False,
+        type=_parse_bool,
+        metavar="true|false",
+        help=(
+            "include the optional BIS speeches mini-NLP section; use "
+            "--speeches=true to enable it"
+        ),
+    )
     report_parser.set_defaults(func=_report)
 
     return parser
@@ -107,7 +118,10 @@ def _transform(args: argparse.Namespace) -> int:
 
 def _report(args: argparse.Namespace) -> int:
     try:
-        result = PolicyRateReporter().report(
+        speeches_provider = build_speeches_analysis if args.speeches else None
+        result = PolicyRateReporter(
+            speeches_provider=speeches_provider,
+        ).report(
             countries=args.countries,
             start=args.start,
         )
@@ -118,9 +132,22 @@ def _report(args: argparse.Namespace) -> int:
     print(f"Summary CSV: {result.summary_csv_path}")
     print(f"Summary JSON: {result.summary_json_path}")
     print(f"Chart: {result.chart_path}")
+    if result.speeches_chart_path is not None:
+        print(f"Speeches chart: {result.speeches_chart_path}")
     print(f"HTML report: {result.report_html_path}")
     print(f"Snapshot rows: {result.rows_written}")
     return 0
+
+
+def _parse_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    clean_value = str(value).strip().lower()
+    if clean_value in {"true", "t", "yes", "y", "1"}:
+        return True
+    if clean_value in {"false", "f", "no", "n", "0"}:
+        return False
+    raise argparse.ArgumentTypeError("Expected true or false.")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
