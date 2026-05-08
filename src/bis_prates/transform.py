@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
+
+os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
 
 import pandas as pd
 import pyarrow as pa
