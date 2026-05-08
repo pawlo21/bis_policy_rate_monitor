@@ -44,4 +44,6 @@ downloaded CSV to discover the BIS dataflow, queries its SDMX structure with
 country or area codes. Invalid codes fail fast with "did you mean" suggestions
 where a close match is available. The downloaded SDMX codelist is cached in
 `data/raw/sdmx_ref_area_codes.json` and reused if the BIS metadata service is
-temporarily unavailable.
+temporarily unavailable. If the live metadata request fails after retries and no
+cache is present, the report still runs and validates requested codes against the
+local processed dataset only.

@@ -6,12 +6,13 @@ import csv
 import json
 import logging
 import re
+import time
 import zipfile
 from dataclasses import asdict, dataclass
 from difflib import get_close_matches
 from pathlib import Path
 from typing import IO
-from typing import Dict, Iterable, List, Mapping
+from typing import Dict, Iterable, List, Mapping, Optional
 
 import msgspec
 from pysdmx.api.qb import (
@@ -30,6 +31,8 @@ log = logging.getLogger(__name__)
 BIS_SDMX_API_ENDPOINT = "https://stats.bis.org/api/v2"
 DEFAULT_RAW_ARCHIVE_PATH = Path("data/raw/WS_CBPOL_csv_flat.zip")
 DEFAULT_METADATA_CACHE_PATH = Path("data/raw/sdmx_ref_area_codes.json")
+DEFAULT_METADATA_ATTEMPTS = 2
+DEFAULT_RETRY_DELAY_SECONDS = 1.0
 REF_AREA_DIMENSION_ID = "REF_AREA"
 COUNTRY_ALIASES = {
     "EA": "XM",
@@ -68,46 +71,78 @@ class CountryCodeValidationError(ValueError):
 
 def fetch_reference_area_codes(
     archive_path: Path = DEFAULT_RAW_ARCHIVE_PATH,
-    timeout: float = 60.0,
+    timeout: float = 20.0,
     cache_path: Path = DEFAULT_METADATA_CACHE_PATH,
-) -> Dict[str, str]:
+    attempts: int = DEFAULT_METADATA_ATTEMPTS,
+    retry_delay_seconds: float = DEFAULT_RETRY_DELAY_SECONDS,
+) -> Optional[Dict[str, str]]:
     """Discover and pull BIS reference-area codes using the downloaded CSV."""
-    try:
-        log.info("Discovering BIS SDMX dataflow from %s", archive_path)
-        dataflow = discover_dataflow_reference_from_csv(archive_path)
-        log.info(
-            "Discovered SDMX dataflow %s:%s(%s)",
-            dataflow.agency,
-            dataflow.dataflow_id,
-            dataflow.version,
-        )
-        log.info("Discovering REF_AREA codelist from BIS SDMX structure metadata")
-        codelist = discover_ref_area_codelist(dataflow, timeout=timeout)
-        log.info(
-            "Discovered REF_AREA codelist %s:%s(%s)",
-            codelist.agency,
-            codelist.codelist_id,
-            codelist.version,
-        )
-        log.info("Fetching BIS SDMX codelist codes")
-        codes = fetch_codelist_codes(codelist, timeout=timeout)
-        log.info("Fetched %d BIS SDMX reference-area codes", len(codes))
-        write_metadata_cache(cache_path, dataflow, codelist, codes)
-        return codes
-    except Exception as error:
-        log.warning("Live BIS SDMX metadata fetch failed: %s", error)
-        cached_codes = load_cached_reference_area_codes(cache_path)
-        if cached_codes:
-            log.info(
-                "Using cached BIS SDMX reference-area codes from %s (%d codes)",
-                cache_path,
-                len(cached_codes),
+    max_attempts = max(1, attempts)
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            log.info("BIS SDMX metadata fetch attempt %d/%d", attempt, max_attempts)
+            codes = _fetch_reference_area_codes_live(archive_path, timeout, cache_path)
+            return codes
+        except Exception as error:
+            last_error = error
+            log.warning(
+                "Live BIS SDMX metadata fetch attempt %d/%d failed: %s",
+                attempt,
+                max_attempts,
+                error,
             )
-            return cached_codes
-        raise RuntimeError(
-            "Could not fetch BIS SDMX metadata and no local metadata cache exists. "
-            "Check the network connection and retry `bis-prates report`."
-        ) from error
+            if attempt < max_attempts:
+                delay = retry_delay_seconds * attempt
+                log.info("Retrying BIS SDMX metadata fetch in %.1f seconds", delay)
+                time.sleep(delay)
+
+    cached_codes = load_cached_reference_area_codes(cache_path)
+    if cached_codes:
+        log.info(
+            "Using cached BIS SDMX reference-area codes from %s (%d codes)",
+            cache_path,
+            len(cached_codes),
+        )
+        return cached_codes
+
+    log.warning(
+        "Skipping BIS SDMX validation; live metadata failed after %d attempt(s), "
+        "no cache exists at %s. Last error: %s",
+        max_attempts,
+        cache_path,
+        last_error,
+    )
+    return None
+
+
+def _fetch_reference_area_codes_live(
+    archive_path: Path,
+    timeout: float,
+    cache_path: Path,
+) -> Dict[str, str]:
+    log.info("Discovering BIS SDMX dataflow from %s", archive_path)
+    dataflow = discover_dataflow_reference_from_csv(archive_path)
+    log.info(
+        "Discovered SDMX dataflow %s:%s(%s)",
+        dataflow.agency,
+        dataflow.dataflow_id,
+        dataflow.version,
+    )
+    log.info("Discovering REF_AREA codelist from BIS SDMX structure metadata")
+    codelist = discover_ref_area_codelist(dataflow, timeout=timeout)
+    log.info(
+        "Discovered REF_AREA codelist %s:%s(%s)",
+        codelist.agency,
+        codelist.codelist_id,
+        codelist.version,
+    )
+    log.info("Fetching BIS SDMX codelist codes")
+    codes = fetch_codelist_codes(codelist, timeout=timeout)
+    log.info("Fetched %d BIS SDMX reference-area codes", len(codes))
+    write_metadata_cache(cache_path, dataflow, codelist, codes)
+    return codes
 
 
 def fetch_codelist_codes(
