@@ -29,6 +29,10 @@ from bis_prates.metadata import (
     fetch_reference_area_codes,
     validate_country_codes,
 )
+from bis_prates.speeches import (
+    SpeechesAnalysis,
+    term_frequency_summary,
+)
 
 
 log = logging.getLogger(__name__)
@@ -38,6 +42,7 @@ DEFAULT_OUTPUT_DIR = Path("out")
 SUMMARY_CSV_NAME = "summary.csv"
 SUMMARY_JSON_NAME = "summary.json"
 CHART_NAME = "policy_rates.png"
+SPEECHES_CHART_NAME = "speeches_terms.png"
 REPORT_HTML_NAME = "report.html"
 PREFERRED_FREQUENCY = "D"
 REPORT_COLUMNS = [
@@ -69,6 +74,7 @@ class ReportResult:
     report_html_path: Path
     countries: List[str]
     rows_written: int
+    speeches_chart_path: Optional[Path] = None
 
 
 class PolicyRateReporter:
@@ -82,14 +88,19 @@ class PolicyRateReporter:
         metadata_provider: Callable[[], Optional[Mapping[str, str]]] = (
             fetch_reference_area_codes
         ),
+        speeches_provider: Optional[
+            Callable[[pd.DataFrame, Path], Optional[SpeechesAnalysis]]
+        ] = None,
     ) -> None:
         self.tidy_data_path = Path(tidy_data_path)
         self.output_dir = Path(output_dir)
         self.preferred_frequency = preferred_frequency
         self.metadata_provider = metadata_provider
+        self.speeches_provider = speeches_provider
         self.summary_csv_path = self.output_dir / SUMMARY_CSV_NAME
         self.summary_json_path = self.output_dir / SUMMARY_JSON_NAME
         self.chart_path = self.output_dir / CHART_NAME
+        self.speeches_chart_path = self.output_dir / SPEECHES_CHART_NAME
         self.report_html_path = self.output_dir / REPORT_HTML_NAME
 
     def report(self, countries: Iterable[str], start: str) -> ReportResult:
@@ -115,6 +126,7 @@ class PolicyRateReporter:
         summary = compute_latest_snapshot(report_data, requested_codes, resolved_codes)
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        speeches_analysis = self._build_speeches_analysis(report_data)
         summary.to_csv(self.summary_csv_path, index=False)
         write_summary_json(
             summary=summary,
@@ -123,6 +135,7 @@ class PolicyRateReporter:
             resolved_codes=resolved_codes,
             start=start,
             source_path=self.tidy_data_path,
+            speeches_analysis=speeches_analysis,
         )
         write_policy_rate_chart(chart_data, self.chart_path, start)
         write_html_report(
@@ -132,6 +145,7 @@ class PolicyRateReporter:
             requested_codes=requested_codes,
             resolved_codes=resolved_codes,
             start=start,
+            speeches_analysis=speeches_analysis,
         )
 
         return ReportResult(
@@ -141,7 +155,29 @@ class PolicyRateReporter:
             report_html_path=self.report_html_path,
             countries=requested_codes,
             rows_written=len(summary),
+            speeches_chart_path=(
+                speeches_analysis.chart_path if speeches_analysis is not None else None
+            ),
         )
+
+    def _build_speeches_analysis(
+        self,
+        report_data: pd.DataFrame,
+    ) -> Optional[SpeechesAnalysis]:
+        if self.speeches_provider is None:
+            self.speeches_chart_path.unlink(missing_ok=True)
+            return None
+
+        try:
+            speeches_analysis = self.speeches_provider(report_data, self.speeches_chart_path)
+        except Exception as error:
+            log.warning("Skipping speeches extension: %s", error)
+            self.speeches_chart_path.unlink(missing_ok=True)
+            return None
+
+        if speeches_analysis is None:
+            self.speeches_chart_path.unlink(missing_ok=True)
+        return speeches_analysis
 
 
 def parse_country_codes(countries: Iterable[str]) -> List[str]:
@@ -286,6 +322,7 @@ def write_summary_json(
     resolved_codes: Dict[str, str],
     start: str,
     source_path: Path,
+    speeches_analysis: Optional[SpeechesAnalysis] = None,
 ) -> None:
     payload = {
         "generated_at_utc": _utc_now(),
@@ -295,6 +332,12 @@ def write_summary_json(
         "resolved_countries": resolved_codes,
         "rows": _json_records(summary),
     }
+    if speeches_analysis is not None:
+        payload["speeches_extension"] = {
+            "chart_path": str(speeches_analysis.chart_path),
+            "term_frequencies": _json_records(speeches_analysis.term_frequencies),
+            "policy_moves": _json_records(speeches_analysis.policy_moves),
+        }
 
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
@@ -337,9 +380,11 @@ def write_html_report(
     requested_codes: List[str],
     resolved_codes: Dict[str, str],
     start: str,
+    speeches_analysis: Optional[SpeechesAnalysis] = None,
 ) -> None:
     chart_b64 = base64.b64encode(chart_path.read_bytes()).decode("ascii")
     table_html = _summary_table_html(summary)
+    speeches_html = _speeches_section_html(speeches_analysis)
     country_label = ", ".join(
         (
             code
@@ -357,6 +402,7 @@ def write_html_report(
   <style>
     body {{ font-family: Arial, sans-serif; margin: 32px; color: #1f2933; }}
     h1 {{ margin-bottom: 4px; }}
+    h3 {{ margin-bottom: 0; }}
     .meta {{ color: #52606d; margin-top: 0; }}
     img {{ max-width: 100%; height: auto; border: 1px solid #d9e2ec; }}
     table {{ border-collapse: collapse; width: 100%; margin-top: 24px; font-size: 13px; }}
@@ -371,6 +417,7 @@ def write_html_report(
   <img src="data:image/png;base64,{chart_b64}" alt="Policy-rate chart">
   <h2>Latest Snapshot</h2>
   {table_html}
+  {speeches_html}
 </body>
 </html>
 """
@@ -397,11 +444,21 @@ def _json_records(frame: pd.DataFrame) -> List[Dict[str, object]]:
     for record in frame.to_dict("records"):
         records.append(
             {
-                key: (None if pd.isna(value) else value)
+                key: _json_scalar(value)
                 for key, value in record.items()
             }
         )
     return records
+
+
+def _json_scalar(value: object) -> object:
+    if pd.isna(value):
+        return None
+    if isinstance(value, pd.Timestamp):
+        return value.date().isoformat()
+    if hasattr(value, "item"):
+        return value.item()
+    return value
 
 
 def _summary_table_html(summary: pd.DataFrame) -> str:
@@ -433,6 +490,59 @@ def _summary_table_html(summary: pd.DataFrame) -> str:
         rows.append(f"<tr>{''.join(cells)}</tr>")
 
     return f"<table><thead><tr>{headers}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
+
+
+def _speeches_section_html(
+    speeches_analysis: Optional[SpeechesAnalysis],
+) -> str:
+    if speeches_analysis is None:
+        return ""
+
+    chart_b64 = base64.b64encode(speeches_analysis.chart_path.read_bytes()).decode("ascii")
+    term_table = _speech_terms_table_html(speeches_analysis.term_frequencies)
+    month_label = _speech_month_label(speeches_analysis.term_frequencies)
+
+    return f"""
+  <h2>Speeches terms vs policy-rate moves</h2>
+  <p>
+    BIS central bankers' speeches for the last two years were scanned for fixed
+    terms and aggregated by month. The chart compares those term counts with
+    the average absolute monthly policy-rate move for the requested countries.
+    This is descriptive text analysis, not a causal model.
+  </p>
+  <p class="meta">Speech window: {html.escape(month_label)}.</p>
+  <img src="data:image/png;base64,{chart_b64}" alt="Speech terms and policy-rate moves chart">
+  <h3>Term totals</h3>
+  {term_table}
+"""
+
+
+def _speech_terms_table_html(term_frequencies: pd.DataFrame) -> str:
+    summary = term_frequency_summary(term_frequencies)
+    columns = ["term", "mentions", "mentions_per_speech"]
+    headers = "".join(f"<th>{html.escape(column)}</th>" for column in columns)
+    rows = []
+    for _, row in summary.iterrows():
+        cells = []
+        for column in columns:
+            value = row[column]
+            if column == "mentions_per_speech":
+                rendered = f"{float(value):.2f}"
+            else:
+                rendered = str(value)
+            css_class = ' class="numeric"' if column != "term" else ""
+            cells.append(f"<td{css_class}>{html.escape(rendered)}</td>")
+        rows.append(f"<tr>{''.join(cells)}</tr>")
+
+    return f"<table><thead><tr>{headers}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
+
+
+def _speech_month_label(term_frequencies: pd.DataFrame) -> str:
+    if term_frequencies.empty:
+        return "no recent speech data"
+    first_month = pd.to_datetime(term_frequencies["month"].min()).strftime("%Y-%m")
+    last_month = pd.to_datetime(term_frequencies["month"].max()).strftime("%Y-%m")
+    return f"{first_month} to {last_month}"
 
 
 def _utc_now() -> str:

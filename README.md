@@ -17,6 +17,7 @@ python -m pip install -e .
 bis-prates fetch
 bis-prates transform
 bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
+bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true
 ```
 
 `bis-prates fetch` stores the raw ZIP in `data/raw/` and records cache metadata
@@ -48,3 +49,11 @@ match is available. The downloaded SDMX codelist is cached in
 temporarily unavailable. If the live metadata request fails after retries and no
 cache is present, the report still runs and validates requested codes against
 the local processed dataset only.
+
+When `--speeches=true` is provided, the report also includes the optional
+speeches extension. It attempts to load the last two years of BIS central
+bankers' speeches via `gingado`; if that library is unavailable in the active
+Python runtime, it falls back to the same yearly BIS speech ZIP files. The
+extension counts fixed terms (`inflation`, `rate`, `tightening`) and compares
+monthly term counts with average absolute monthly policy-rate moves in
+`out/speeches_terms.png` and `out/report.html`.
