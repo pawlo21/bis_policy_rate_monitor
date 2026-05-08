@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from typing import Optional, Sequence
 
 from bis_prates.fetch import BisBulkFetcher
 from bis_prates.report import PolicyRateReporter
 from bis_prates.transform import PolicyRateTransformer
+
+
+LOG_FORMAT = "%(levelname)s %(name)s: %(message)s"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -120,6 +124,7 @@ def _report(args: argparse.Namespace) -> int:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     parser = build_parser()
     args_list = list(argv) if argv is not None else sys.argv[1:]
 

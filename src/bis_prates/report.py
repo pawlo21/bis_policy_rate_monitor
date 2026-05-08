@@ -10,7 +10,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Mapping, Optional, Tuple
 
 os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/bis_prates_matplotlib")
 os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
@@ -23,6 +23,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from bis_prates.metadata import (
+    COUNTRY_ALIASES,
+    fetch_reference_area_codes,
+    validate_country_codes,
+)
+
 
 DEFAULT_TIDY_DATA_PATH = Path("data/processed/policy_rates_tidy.parquet")
 DEFAULT_OUTPUT_DIR = Path("out")
@@ -31,9 +37,6 @@ SUMMARY_JSON_NAME = "summary.json"
 CHART_NAME = "policy_rates.png"
 REPORT_HTML_NAME = "report.html"
 PREFERRED_FREQUENCY = "D"
-COUNTRY_ALIASES = {
-    "EA": "XM",
-}
 REPORT_COLUMNS = [
     "requested_code",
     "ref_area_code",
@@ -73,10 +76,12 @@ class PolicyRateReporter:
         tidy_data_path: Path = DEFAULT_TIDY_DATA_PATH,
         output_dir: Path = DEFAULT_OUTPUT_DIR,
         preferred_frequency: str = PREFERRED_FREQUENCY,
+        metadata_provider: Callable[[], Mapping[str, str]] = fetch_reference_area_codes,
     ) -> None:
         self.tidy_data_path = Path(tidy_data_path)
         self.output_dir = Path(output_dir)
         self.preferred_frequency = preferred_frequency
+        self.metadata_provider = metadata_provider
         self.summary_csv_path = self.output_dir / SUMMARY_CSV_NAME
         self.summary_json_path = self.output_dir / SUMMARY_JSON_NAME
         self.chart_path = self.output_dir / CHART_NAME
@@ -88,8 +93,13 @@ class PolicyRateReporter:
             raise ValueError("At least one country code is required.")
 
         start_date = pd.Timestamp(start)
+        metadata_codes = self.metadata_provider()
         data = load_tidy_data(self.tidy_data_path)
-        resolved_codes = resolve_country_codes(requested_codes, data)
+        resolved_codes = resolve_country_codes(
+            requested_codes,
+            data,
+            metadata_codes=metadata_codes,
+        )
         report_data = select_report_data(
             data=data,
             requested_codes=requested_codes,
@@ -158,20 +168,27 @@ def load_tidy_data(path: Path) -> pd.DataFrame:
 
 
 def resolve_country_codes(
-    requested_codes: List[str], data: pd.DataFrame
+    requested_codes: List[str],
+    data: pd.DataFrame,
+    metadata_codes: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, str]:
-    available_codes = set(data["ref_area_code"].dropna().astype(str).str.upper())
-    resolved = {}
+    if metadata_codes is None:
+        resolved = {
+            code: COUNTRY_ALIASES.get(code, code)
+            for code in requested_codes
+        }
+    else:
+        resolved = validate_country_codes(requested_codes, metadata_codes)
 
-    for requested_code in requested_codes:
-        actual_code = COUNTRY_ALIASES.get(requested_code, requested_code)
-        if actual_code not in available_codes:
-            available = ", ".join(sorted(available_codes))
+    available_data_codes = set(data["ref_area_code"].dropna().astype(str).str.upper())
+    for requested_code, actual_code in resolved.items():
+        if actual_code not in available_data_codes:
+            available = ", ".join(sorted(available_data_codes))
             raise ValueError(
-                f"Country code '{requested_code}' is not available in the BIS data. "
-                f"Available codes: {available}"
+                f"Country code '{requested_code}' is valid in BIS metadata but has "
+                f"no policy-rate observations in the local dataset. Available local "
+                f"codes: {available}"
             )
-        resolved[requested_code] = actual_code
 
     return resolved
 
