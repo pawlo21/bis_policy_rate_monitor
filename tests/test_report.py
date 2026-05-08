@@ -23,10 +23,27 @@ class ReportTest(unittest.TestCase):
         )
 
         requested = parse_country_codes("US, ea, GB")
-        resolved = resolve_country_codes(["US", "EA"], data)
+        resolved = resolve_country_codes(
+            ["US", "EA"],
+            data,
+            metadata_codes={"US": "United States", "XM": "Euro area"},
+        )
 
         self.assertEqual(requested, ["US", "EA", "GB"])
         self.assertEqual(resolved, {"US": "US", "EA": "XM"})
+
+    def test_resolve_country_codes_uses_local_validation_without_sdmx(self) -> None:
+        data = pd.DataFrame(
+            {
+                "ref_area_code": ["US", "XM"],
+            }
+        )
+
+        with self.assertLogs("bis_prates.report", level="WARNING") as logs:
+            resolved = resolve_country_codes(["US", "EA"], data, metadata_codes=None)
+
+        self.assertEqual(resolved, {"US": "US", "EA": "XM"})
+        self.assertIn("falling back to local dataset code validation", "\n".join(logs.output))
 
     def test_report_writes_summary_chart_and_html(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -62,6 +79,27 @@ class ReportTest(unittest.TestCase):
             self.assertEqual(us_row["previous_rate"], 5.0)
             self.assertEqual(round(us_row["change_from_previous"], 2), 0.25)
             self.assertEqual(ea_row["ref_area_code"], "XM")
+
+    def test_report_continues_when_sdmx_metadata_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            tidy_path = root / "policy_rates_tidy.parquet"
+            output_dir = root / "out"
+            _write_tidy_fixture(tidy_path)
+
+            with self.assertLogs("bis_prates.report", level="WARNING") as logs:
+                result = PolicyRateReporter(
+                    tidy_data_path=tidy_path,
+                    output_dir=output_dir,
+                    metadata_provider=lambda: None,
+                ).report(countries="EA", start="2024-01-01")
+
+            self.assertEqual(result.rows_written, 1)
+            self.assertTrue(result.report_html_path.exists())
+            self.assertIn(
+                "falling back to local dataset code validation",
+                "\n".join(logs.output),
+            )
 
 
 def _write_tidy_fixture(path: Path) -> None:

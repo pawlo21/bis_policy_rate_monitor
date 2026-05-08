@@ -6,6 +6,7 @@ import base64
 import contextlib
 import html
 import json
+import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -29,6 +30,8 @@ from bis_prates.metadata import (
     validate_country_codes,
 )
 
+
+log = logging.getLogger(__name__)
 
 DEFAULT_TIDY_DATA_PATH = Path("data/processed/policy_rates_tidy.parquet")
 DEFAULT_OUTPUT_DIR = Path("out")
@@ -76,7 +79,9 @@ class PolicyRateReporter:
         tidy_data_path: Path = DEFAULT_TIDY_DATA_PATH,
         output_dir: Path = DEFAULT_OUTPUT_DIR,
         preferred_frequency: str = PREFERRED_FREQUENCY,
-        metadata_provider: Callable[[], Mapping[str, str]] = fetch_reference_area_codes,
+        metadata_provider: Callable[[], Optional[Mapping[str, str]]] = (
+            fetch_reference_area_codes
+        ),
     ) -> None:
         self.tidy_data_path = Path(tidy_data_path)
         self.output_dir = Path(output_dir)
@@ -172,7 +177,12 @@ def resolve_country_codes(
     data: pd.DataFrame,
     metadata_codes: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, str]:
+    using_sdmx_metadata = metadata_codes is not None
     if metadata_codes is None:
+        log.warning(
+            "BIS SDMX metadata validation unavailable; falling back to local "
+            "dataset code validation."
+        )
         resolved = {
             code: COUNTRY_ALIASES.get(code, code)
             for code in requested_codes
@@ -184,10 +194,15 @@ def resolve_country_codes(
     for requested_code, actual_code in resolved.items():
         if actual_code not in available_data_codes:
             available = ", ".join(sorted(available_data_codes))
+            if using_sdmx_metadata:
+                raise ValueError(
+                    f"Country code '{requested_code}' is valid in BIS metadata but has "
+                    f"no policy-rate observations in the local dataset. Available "
+                    f"local codes: {available}"
+                )
             raise ValueError(
-                f"Country code '{requested_code}' is valid in BIS metadata but has "
-                f"no policy-rate observations in the local dataset. Available local "
-                f"codes: {available}"
+                f"Country code '{requested_code}' is not available in the local "
+                f"policy-rate dataset. Available local codes: {available}"
             )
 
     return resolved

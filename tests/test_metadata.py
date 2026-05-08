@@ -43,15 +43,37 @@ class MetadataTest(unittest.TestCase):
             with self.assertLogs("bis_prates.metadata", level="INFO") as logs, patch(
                 "bis_prates.metadata.discover_dataflow_reference_from_csv",
                 side_effect=TimeoutError("metadata timeout"),
-            ):
+            ) as discover:
                 codes = fetch_reference_area_codes(
                     archive_path=Path(tmp_dir) / "missing.zip",
                     cache_path=cache_path,
+                    attempts=2,
+                    retry_delay_seconds=0,
                 )
 
         self.assertEqual(codes["US"], "United States")
         self.assertEqual(codes["XM"], "Euro area")
+        self.assertEqual(discover.call_count, 2)
         self.assertIn("Using cached BIS SDMX reference-area codes", "\n".join(logs.output))
+
+    def test_fetch_reference_area_codes_returns_none_without_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            cache_path = Path(tmp_dir) / "missing_cache.json"
+
+            with self.assertLogs("bis_prates.metadata", level="WARNING") as logs, patch(
+                "bis_prates.metadata.discover_dataflow_reference_from_csv",
+                side_effect=TimeoutError("metadata timeout"),
+            ) as discover:
+                codes = fetch_reference_area_codes(
+                    archive_path=Path(tmp_dir) / "missing.zip",
+                    cache_path=cache_path,
+                    attempts=2,
+                    retry_delay_seconds=0,
+                )
+
+        self.assertIsNone(codes)
+        self.assertEqual(discover.call_count, 2)
+        self.assertIn("Skipping BIS SDMX validation", "\n".join(logs.output))
 
     def test_validate_country_codes_accepts_euro_area_alias(self) -> None:
         resolved = validate_country_codes(
