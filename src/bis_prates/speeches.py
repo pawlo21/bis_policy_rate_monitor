@@ -369,8 +369,33 @@ def _download_speeches_year(year: int, timeout: int) -> pd.DataFrame:
         csv_info = archive.getinfo(csv_name)
         if csv_info.file_size > MAX_CSV_BYTES:
             raise RuntimeError(f"BIS speeches CSV for {year} exceeds the size limit.")
-        with archive.open(csv_name) as csv_file:
-            return pd.read_csv(csv_file)
+        return _read_speeches_csv(archive, csv_name, year)
+
+
+def _read_speeches_csv(
+    archive: zipfile.ZipFile, csv_name: str, year: int
+) -> pd.DataFrame:
+    # BIS speech CSVs are usually UTF-8 but occasional translated content has
+    # arrived as Latin-1. Re-open for the fallback because pandas may have
+    # consumed part of the stream before the decode error surfaced.
+    for encoding in ("utf-8", "latin-1"):
+        try:
+            with archive.open(csv_name) as csv_file:
+                return pd.read_csv(csv_file, encoding=encoding)
+        except UnicodeDecodeError as error:
+            log.warning(
+                "Decoding BIS speeches CSV for %s as %s failed: %s",
+                year,
+                encoding,
+                error,
+            )
+    raise UnicodeDecodeError(
+        "utf-8",
+        b"",
+        0,
+        0,
+        f"Could not decode BIS speeches CSV for {year} as UTF-8 or Latin-1.",
+    )
 
 
 def _select_speeches_csv(archive: zipfile.ZipFile, year: int) -> str:
