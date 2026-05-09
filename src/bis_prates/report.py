@@ -507,7 +507,7 @@ def _speeches_section_html(
   <p>
     BIS central bankers' speeches for the last two years were scanned for fixed
     terms and aggregated by month. The chart compares those term counts with
-    the average absolute monthly policy-rate move for the requested countries.
+    signed monthly policy-rate moves for each requested country.
     This is descriptive text analysis, not a causal model.
   </p>
   <p class="meta">Speech window: {html.escape(month_label)}.</p>

@@ -21,12 +21,14 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import pandas as pd
 
 
 log = logging.getLogger(__name__)
 
 BIS_SPEECHES_BASE_URL = "https://www.bis.org/speeches/"
+GINGADO_CACHE_DIR = Path("data/raw/gingado")
 HTTP_TIMEOUT_SECONDS = 30
 LOOKBACK_YEARS = 2
 MAX_ZIP_BYTES = 50_000_000
@@ -195,12 +197,12 @@ def compute_monthly_policy_moves(
     policy_rate_data: pd.DataFrame,
     start: Optional[pd.Timestamp] = None,
 ) -> pd.DataFrame:
-    """Compute average absolute monthly policy-rate moves in basis points.
+    """Compute signed monthly policy-rate moves by country in basis points.
 
     Policy rates are stored as percentages, so a 0.25 percentage-point move is
-    multiplied by 100 and reported as 25 basis points.
+    multiplied by 100 and reported as 25 basis points. Cuts remain negative.
     """
-    columns = ["month", "avg_abs_policy_move_bps"]
+    columns = ["month", "requested_code", "policy_move_bps"]
     if policy_rate_data.empty:
         return pd.DataFrame(columns=columns)
 
@@ -229,7 +231,7 @@ def compute_monthly_policy_moves(
                 {
                     "month": month,
                     "requested_code": requested_code,
-                    "move_bps": float(move_bps),
+                    "policy_move_bps": float(move_bps),
                 }
             )
 
@@ -237,14 +239,7 @@ def compute_monthly_policy_moves(
     if moves.empty:
         return pd.DataFrame(columns=columns)
 
-    return (
-        moves.assign(abs_move_bps=moves["move_bps"].abs())
-        .groupby("month", as_index=False)["abs_move_bps"]
-        .mean()
-        .rename(columns={"abs_move_bps": "avg_abs_policy_move_bps"})
-        .sort_values("month")
-        .reset_index(drop=True)
-    )
+    return moves.sort_values(["month", "requested_code"]).reset_index(drop=True)
 
 
 def term_frequency_summary(
@@ -305,15 +300,30 @@ def render_speeches_chart(
         moves_ax.text(0.5, 0.5, "No monthly policy-rate moves", ha="center")
         moves_ax.set_axis_off()
     else:
-        moves_ax.bar(
-            policy_moves["month"],
-            policy_moves["avg_abs_policy_move_bps"],
-            width=20,
-            alpha=0.75,
-        )
-        moves_ax.set_title("Average absolute monthly policy-rate move")
+        moves = policy_moves.copy()
+        moves["month"] = pd.to_datetime(moves["month"], errors="coerce")
+        moves = moves.dropna(subset=["month", "requested_code", "policy_move_bps"])
+        country_codes = sorted(moves["requested_code"].astype(str).unique())
+        bar_width_days = 24 / max(len(country_codes), 1)
+
+        for index, country_code in enumerate(country_codes):
+            country_moves = moves[moves["requested_code"].eq(country_code)].sort_values("month")
+            offset_days = (index - (len(country_codes) - 1) / 2) * bar_width_days
+            x_values = mdates.date2num(country_moves["month"]) + offset_days
+            moves_ax.bar(
+                x_values,
+                country_moves["policy_move_bps"],
+                width=bar_width_days * 0.85,
+                alpha=0.75,
+                label=country_code,
+            )
+
+        moves_ax.axhline(0, color="#52606d", linewidth=0.8)
+        moves_ax.xaxis_date()
+        moves_ax.set_title("Monthly policy-rate moves by country")
         moves_ax.set_ylabel("Basis points")
         moves_ax.grid(True, axis="y", alpha=0.3)
+        moves_ax.legend(loc="best", fontsize=8)
 
     fig.autofmt_xdate()
     fig.tight_layout()
@@ -332,9 +342,11 @@ def _load_speeches_year(year: int, timeout: int) -> pd.DataFrame:
         return _download_speeches_year(year, timeout=timeout)
 
     try:
-        from gingado.datasets import load_CB_speeches
+        from gingado import datasets as gingado_datasets
 
-        return load_CB_speeches(year=year, cache=True, timeout=timeout)
+        GINGADO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        gingado_datasets.CACHE_DIRECTORY = str(GINGADO_CACHE_DIR)
+        return gingado_datasets.load_CB_speeches(year=year, cache=True, timeout=timeout)
     except Exception as error:
         log.warning(
             "gingado could not load BIS speeches for %s (%s); trying direct BIS ZIP.",

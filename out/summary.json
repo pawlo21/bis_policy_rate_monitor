@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-08T23:41:14Z",
+  "generated_at_utc": "2026-05-09T00:02:18Z",
   "source_path": "data/processed/policy_rates_tidy.parquet",
   "start": "2015-01-01",
   "requested_countries": [
@@ -118,11 +118,11 @@
     "term_frequencies": [
       {
         "month": "2024-05-01",
-        "speech_count": 69,
-        "inflation": 1365,
-        "rate": 922,
-        "tightening": 157,
-        "total_term_hits": 2444
+        "speech_count": 66,
+        "inflation": 1221,
+        "rate": 835,
+        "tightening": 142,
+        "total_term_hits": 2198
       },
       {
         "month": "2024-06-01",
@@ -280,99 +280,603 @@
     "policy_moves": [
       {
         "month": "2024-06-01",
-        "avg_abs_policy_move_bps": 10.0
+        "requested_code": "CH",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2024-06-01",
+        "requested_code": "EA",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2024-06-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-06-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-06-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2024-07-01",
-        "avg_abs_policy_move_bps": 0.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-07-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-07-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-07-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-07-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2024-08-01",
-        "avg_abs_policy_move_bps": 9.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-08-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-08-01",
+        "requested_code": "GB",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2024-08-01",
+        "requested_code": "JP",
+        "policy_move_bps": 20.0
+      },
+      {
+        "month": "2024-08-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2024-09-01",
-        "avg_abs_policy_move_bps": 30.0
+        "requested_code": "CH",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2024-09-01",
+        "requested_code": "EA",
+        "policy_move_bps": -75.0
+      },
+      {
+        "month": "2024-09-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-09-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-09-01",
+        "requested_code": "US",
+        "policy_move_bps": -50.0
       },
       {
         "month": "2024-10-01",
-        "avg_abs_policy_move_bps": 5.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-10-01",
+        "requested_code": "EA",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2024-10-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-10-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-10-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2024-11-01",
-        "avg_abs_policy_move_bps": 10.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-11-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-11-01",
+        "requested_code": "GB",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2024-11-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-11-01",
+        "requested_code": "US",
+        "policy_move_bps": -25.0
       },
       {
         "month": "2024-12-01",
-        "avg_abs_policy_move_bps": 20.0
+        "requested_code": "CH",
+        "policy_move_bps": -50.0
+      },
+      {
+        "month": "2024-12-01",
+        "requested_code": "EA",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2024-12-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-12-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2024-12-01",
+        "requested_code": "US",
+        "policy_move_bps": -25.0
       },
       {
         "month": "2025-01-01",
-        "avg_abs_policy_move_bps": 5.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-01-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-01-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-01-01",
+        "requested_code": "JP",
+        "policy_move_bps": 25.0
+      },
+      {
+        "month": "2025-01-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2025-02-01",
-        "avg_abs_policy_move_bps": 10.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-02-01",
+        "requested_code": "EA",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-02-01",
+        "requested_code": "GB",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-02-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-02-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2025-03-01",
-        "avg_abs_policy_move_bps": 10.0
+        "requested_code": "CH",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-03-01",
+        "requested_code": "EA",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-03-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-03-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-03-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2025-04-01",
-        "avg_abs_policy_move_bps": 5.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-04-01",
+        "requested_code": "EA",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-04-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-04-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-04-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2025-05-01",
-        "avg_abs_policy_move_bps": 5.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-05-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-05-01",
+        "requested_code": "GB",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-05-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-05-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2025-06-01",
-        "avg_abs_policy_move_bps": 10.0
+        "requested_code": "CH",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-06-01",
+        "requested_code": "EA",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-06-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-06-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-06-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2025-07-01",
-        "avg_abs_policy_move_bps": 0.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-07-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-07-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-07-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-07-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2025-08-01",
-        "avg_abs_policy_move_bps": 5.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-08-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-08-01",
+        "requested_code": "GB",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-08-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-08-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2025-09-01",
-        "avg_abs_policy_move_bps": 5.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-09-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-09-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-09-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-09-01",
+        "requested_code": "US",
+        "policy_move_bps": -25.0
       },
       {
         "month": "2025-10-01",
-        "avg_abs_policy_move_bps": 5.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-10-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-10-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-10-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-10-01",
+        "requested_code": "US",
+        "policy_move_bps": -25.0
       },
       {
         "month": "2025-11-01",
-        "avg_abs_policy_move_bps": 0.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-11-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-11-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-11-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-11-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2025-12-01",
-        "avg_abs_policy_move_bps": 15.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-12-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2025-12-01",
+        "requested_code": "GB",
+        "policy_move_bps": -25.0
+      },
+      {
+        "month": "2025-12-01",
+        "requested_code": "JP",
+        "policy_move_bps": 25.0
+      },
+      {
+        "month": "2025-12-01",
+        "requested_code": "US",
+        "policy_move_bps": -25.0
       },
       {
         "month": "2026-01-01",
-        "avg_abs_policy_move_bps": 0.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-01-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-01-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-01-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-01-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2026-02-01",
-        "avg_abs_policy_move_bps": 0.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-02-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-02-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-02-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-02-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2026-03-01",
-        "avg_abs_policy_move_bps": 0.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-03-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-03-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-03-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-03-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2026-04-01",
-        "avg_abs_policy_move_bps": 0.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-04-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-04-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-04-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-04-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       },
       {
         "month": "2026-05-01",
-        "avg_abs_policy_move_bps": 0.0
+        "requested_code": "CH",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-05-01",
+        "requested_code": "EA",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-05-01",
+        "requested_code": "GB",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-05-01",
+        "requested_code": "JP",
+        "policy_move_bps": 0.0
+      },
+      {
+        "month": "2026-05-01",
+        "requested_code": "US",
+        "policy_move_bps": 0.0
       }
     ]
   }
