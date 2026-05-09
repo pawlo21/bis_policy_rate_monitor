@@ -33,6 +33,21 @@ class CliTest(unittest.TestCase):
 
         self.assertTrue(args.speeches)
 
+    def test_report_transformer_flag_accepts_true(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "report",
+                "--countries",
+                "US,EA",
+                "--start",
+                "2015-01-01",
+                "--speeches=true",
+                "--with-transformer",
+            ]
+        )
+
+        self.assertTrue(args.with_transformer)
+
 
 if __name__ == "__main__":
     unittest.main()

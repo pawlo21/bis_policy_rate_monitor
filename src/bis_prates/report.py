@@ -43,6 +43,7 @@ SUMMARY_CSV_NAME = "summary.csv"
 SUMMARY_JSON_NAME = "summary.json"
 CHART_NAME = "policy_rates.png"
 SPEECHES_CHART_NAME = "speeches_terms.png"
+TRANSFORMER_SPEECHES_CHART_NAME = "speeches_transformer.png"
 REPORT_HTML_NAME = "report.html"
 PREFERRED_FREQUENCY = "D"
 REPORT_COLUMNS = [
@@ -75,6 +76,7 @@ class ReportResult:
     countries: List[str]
     rows_written: int
     speeches_chart_path: Optional[Path] = None
+    transformer_speeches_chart_path: Optional[Path] = None
 
 
 class PolicyRateReporter:
@@ -101,6 +103,9 @@ class PolicyRateReporter:
         self.summary_json_path = self.output_dir / SUMMARY_JSON_NAME
         self.chart_path = self.output_dir / CHART_NAME
         self.speeches_chart_path = self.output_dir / SPEECHES_CHART_NAME
+        self.transformer_speeches_chart_path = (
+            self.output_dir / TRANSFORMER_SPEECHES_CHART_NAME
+        )
         self.report_html_path = self.output_dir / REPORT_HTML_NAME
 
     def report(self, countries: Iterable[str], start: str) -> ReportResult:
@@ -158,6 +163,14 @@ class PolicyRateReporter:
             speeches_chart_path=(
                 speeches_analysis.chart_path if speeches_analysis is not None else None
             ),
+            transformer_speeches_chart_path=(
+                speeches_analysis.transformer_analysis.chart_path
+                if (
+                    speeches_analysis is not None
+                    and speeches_analysis.transformer_analysis is not None
+                )
+                else None
+            ),
         )
 
     def _build_speeches_analysis(
@@ -166,6 +179,7 @@ class PolicyRateReporter:
     ) -> Optional[SpeechesAnalysis]:
         if self.speeches_provider is None:
             self.speeches_chart_path.unlink(missing_ok=True)
+            self.transformer_speeches_chart_path.unlink(missing_ok=True)
             return None
 
         try:
@@ -173,10 +187,14 @@ class PolicyRateReporter:
         except Exception as error:
             log.warning("Skipping speeches extension: %s", error)
             self.speeches_chart_path.unlink(missing_ok=True)
+            self.transformer_speeches_chart_path.unlink(missing_ok=True)
             return None
 
         if speeches_analysis is None:
             self.speeches_chart_path.unlink(missing_ok=True)
+            self.transformer_speeches_chart_path.unlink(missing_ok=True)
+        elif speeches_analysis.transformer_analysis is None:
+            self.transformer_speeches_chart_path.unlink(missing_ok=True)
         return speeches_analysis
 
 
@@ -333,11 +351,19 @@ def write_summary_json(
         "rows": _json_records(summary),
     }
     if speeches_analysis is not None:
-        payload["speeches_extension"] = {
+        speeches_payload = {
             "chart_path": str(speeches_analysis.chart_path),
             "term_frequencies": _json_records(speeches_analysis.term_frequencies),
             "policy_moves": _json_records(speeches_analysis.policy_moves),
         }
+        if speeches_analysis.transformer_analysis is not None:
+            transformer = speeches_analysis.transformer_analysis
+            speeches_payload["transformer"] = {
+                "model_name": transformer.model_name,
+                "chart_path": str(transformer.chart_path),
+                "monthly_stance": _json_records(transformer.monthly_stance),
+            }
+        payload["speeches_extension"] = speeches_payload
 
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
@@ -501,6 +527,7 @@ def _speeches_section_html(
     chart_b64 = base64.b64encode(speeches_analysis.chart_path.read_bytes()).decode("ascii")
     term_table = _speech_terms_table_html(speeches_analysis.term_frequencies)
     month_label = _speech_month_label(speeches_analysis.term_frequencies)
+    transformer_html = _transformer_speeches_html(speeches_analysis)
 
     return f"""
   <h2>Speeches terms vs policy-rate moves</h2>
@@ -514,6 +541,7 @@ def _speeches_section_html(
   <img src="data:image/png;base64,{chart_b64}" alt="Speech terms and policy-rate moves chart">
   <h3>Term totals</h3>
   {term_table}
+  {transformer_html}
 """
 
 
@@ -543,6 +571,58 @@ def _speech_month_label(term_frequencies: pd.DataFrame) -> str:
     first_month = pd.to_datetime(term_frequencies["month"].min()).strftime("%Y-%m")
     last_month = pd.to_datetime(term_frequencies["month"].max()).strftime("%Y-%m")
     return f"{first_month} to {last_month}"
+
+
+def _transformer_speeches_html(speeches_analysis: SpeechesAnalysis) -> str:
+    transformer = speeches_analysis.transformer_analysis
+    if transformer is None or transformer.monthly_stance.empty:
+        return ""
+
+    chart_b64 = base64.b64encode(transformer.chart_path.read_bytes()).decode("ascii")
+    stance_table = _transformer_stance_table_html(transformer.monthly_stance)
+    return f"""
+  <h2>Transformer speech stance</h2>
+  <p>
+    Policy-relevant speech sentences were classified with
+    <code>{html.escape(transformer.model_name)}</code>. The chart shows monthly
+    hawkish, dovish, and net hawkish shares across classified sentences.
+  </p>
+  <img src="data:image/png;base64,{chart_b64}" alt="Transformer hawkish/dovish speech stance chart">
+  <h3>Monthly transformer stance</h3>
+  {stance_table}
+"""
+
+
+def _transformer_stance_table_html(monthly_stance: pd.DataFrame) -> str:
+    columns = [
+        "month",
+        "speech_count",
+        "sentence_count",
+        "hawkish_share",
+        "dovish_share",
+        "neutral_share",
+        "net_hawkish_share",
+        "average_confidence",
+    ]
+    headers = "".join(f"<th>{html.escape(column)}</th>" for column in columns)
+    rows = []
+    for _, row in monthly_stance.iterrows():
+        cells = []
+        for column in columns:
+            value = row[column]
+            if pd.isna(value):
+                rendered = ""
+            elif column == "month":
+                rendered = pd.to_datetime(value).strftime("%Y-%m")
+            elif column in {"speech_count", "sentence_count"}:
+                rendered = str(int(value))
+            else:
+                rendered = f"{float(value):.2f}"
+            css_class = ' class="numeric"' if column != "month" else ""
+            cells.append(f"<td{css_class}>{html.escape(rendered)}</td>")
+        rows.append(f"<tr>{''.join(cells)}</tr>")
+
+    return f"<table><thead><tr>{headers}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
 
 
 def _utc_now() -> str:

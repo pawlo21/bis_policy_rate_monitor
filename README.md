@@ -9,6 +9,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -e .
+# Optional, only needed when using --with-transformer:
+python -m pip install -e ".[transformer]"
 ```
 
 ## CLI
@@ -18,6 +20,7 @@ bis-prates fetch
 bis-prates transform
 bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
 bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true
+bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true --with-transformer
 ```
 
 `bis-prates fetch` stores the raw ZIP in `data/raw/` and records cache metadata
@@ -57,3 +60,8 @@ Python runtime, it falls back to the same yearly BIS speech ZIP files. The
 extension counts fixed terms (`inflation`, `rate`, `tightening`) and compares
 monthly term counts with signed monthly policy-rate moves by country in
 `out/speeches_terms.png` and `out/report.html`.
+
+When `--with-transformer` is added, the report also runs the ready Hugging Face
+model `brjoey/CBSI-CentralBank-BERT` on policy-relevant speech sentences. This
+adds a second speech chart, `out/speeches_transformer.png`, plus a monthly
+hawkish/dovish table in `out/summary.json` and `out/report.html`.

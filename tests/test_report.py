@@ -12,6 +12,7 @@ from bis_prates.report import (
     parse_country_codes,
     resolve_country_codes,
 )
+from bis_prates.speech_transformer import TransformerSpeechAnalysis, TransformerSpeechClassifier
 from bis_prates.speeches import SpeechesAnalysis, render_speeches_chart
 
 
@@ -104,15 +105,39 @@ class ReportTest(unittest.TestCase):
             self.assertIn("speeches_extension", payload)
             self.assertIn("Speeches terms vs policy-rate moves", report_html)
 
+    def test_report_includes_transformer_speech_chart_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            tidy_path = root / "policy_rates_tidy.parquet"
+            output_dir = root / "out"
+            _write_tidy_fixture(tidy_path)
+
+            result = PolicyRateReporter(
+                tidy_data_path=tidy_path,
+                output_dir=output_dir,
+                metadata_provider=lambda: {"US": "United States"},
+                speeches_provider=_fake_transformer_speeches_provider,
+            ).report(countries="US", start="2024-01-01")
+
+            payload = json.loads(result.summary_json_path.read_text(encoding="utf-8"))
+            report_html = result.report_html_path.read_text(encoding="utf-8")
+
+            self.assertIsNotNone(result.transformer_speeches_chart_path)
+            self.assertTrue(result.transformer_speeches_chart_path.exists())
+            self.assertIn("transformer", payload["speeches_extension"])
+            self.assertIn("Transformer speech stance", report_html)
+
     def test_report_without_speeches_removes_stale_speeches_chart(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             tidy_path = root / "policy_rates_tidy.parquet"
             output_dir = root / "out"
             stale_chart = output_dir / "speeches_terms.png"
+            stale_transformer_chart = output_dir / "speeches_transformer.png"
             _write_tidy_fixture(tidy_path)
             output_dir.mkdir()
             stale_chart.write_bytes(b"stale")
+            stale_transformer_chart.write_bytes(b"stale")
 
             result = PolicyRateReporter(
                 tidy_data_path=tidy_path,
@@ -124,7 +149,9 @@ class ReportTest(unittest.TestCase):
             report_html = result.report_html_path.read_text(encoding="utf-8")
 
             self.assertIsNone(result.speeches_chart_path)
+            self.assertIsNone(result.transformer_speeches_chart_path)
             self.assertFalse(stale_chart.exists())
+            self.assertFalse(stale_transformer_chart.exists())
             self.assertNotIn("speeches_extension", payload)
             self.assertNotIn("Speeches terms vs policy-rate moves", report_html)
 
@@ -233,6 +260,58 @@ def _fake_speeches_provider(
         chart_path=chart_path,
         term_frequencies=term_frequencies,
         policy_moves=policy_moves,
+    )
+
+
+def _fake_transformer_speeches_provider(
+    report_data: pd.DataFrame,
+    chart_path: Path,
+) -> SpeechesAnalysis:
+    term_frequencies = pd.DataFrame(
+        {
+            "month": [pd.Timestamp("2024-01-01")],
+            "speech_count": [1],
+            "inflation": [2],
+            "rate": [1],
+            "tightening": [1],
+            "total_term_hits": [4],
+        }
+    )
+    policy_moves = pd.DataFrame(
+        {
+            "month": [pd.Timestamp("2024-01-01")],
+            "requested_code": ["US"],
+            "policy_move_bps": [25.0],
+        }
+    )
+    monthly_stance = pd.DataFrame(
+        {
+            "month": [pd.Timestamp("2024-01-01")],
+            "speech_count": [1],
+            "sentence_count": [2],
+            "hawkish_sentences": [1],
+            "dovish_sentences": [0],
+            "neutral_sentences": [1],
+            "hawkish_share": [0.5],
+            "dovish_share": [0.0],
+            "neutral_share": [0.5],
+            "net_hawkish_share": [0.5],
+            "average_confidence": [0.9],
+        }
+    )
+
+    render_speeches_chart(term_frequencies, policy_moves, chart_path)
+    transformer_chart_path = chart_path.with_name("speeches_transformer.png")
+    TransformerSpeechClassifier().render_chart(monthly_stance, transformer_chart_path)
+    return SpeechesAnalysis(
+        chart_path=chart_path,
+        term_frequencies=term_frequencies,
+        policy_moves=policy_moves,
+        transformer_analysis=TransformerSpeechAnalysis(
+            chart_path=transformer_chart_path,
+            model_name="brjoey/CBSI-CentralBank-BERT",
+            monthly_stance=monthly_stance,
+        ),
     )
 
 

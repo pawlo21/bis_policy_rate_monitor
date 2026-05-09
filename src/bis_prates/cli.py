@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from functools import partial
 from typing import Optional, Sequence
 
 from bis_prates.fetch import BisBulkFetcher
@@ -74,6 +75,14 @@ def build_parser() -> argparse.ArgumentParser:
             "--speeches=true to enable it"
         ),
     )
+    report_parser.add_argument(
+        "--with-transformer",
+        action="store_true",
+        help=(
+            "when speeches are enabled, also classify speech sentences with "
+            "brjoey/CBSI-CentralBank-BERT and add a transformer chart"
+        ),
+    )
     report_parser.set_defaults(func=_report)
 
     return parser
@@ -117,8 +126,16 @@ def _transform(args: argparse.Namespace) -> int:
 
 
 def _report(args: argparse.Namespace) -> int:
+    if args.with_transformer and not args.speeches:
+        print("Report failed: --with-transformer requires --speeches=true", file=sys.stderr)
+        return 1
+
     try:
-        speeches_provider = build_speeches_analysis if args.speeches else None
+        speeches_provider = (
+            partial(build_speeches_analysis, with_transformer=args.with_transformer)
+            if args.speeches
+            else None
+        )
         result = PolicyRateReporter(
             speeches_provider=speeches_provider,
         ).report(
@@ -134,6 +151,8 @@ def _report(args: argparse.Namespace) -> int:
     print(f"Chart: {result.chart_path}")
     if result.speeches_chart_path is not None:
         print(f"Speeches chart: {result.speeches_chart_path}")
+    if result.transformer_speeches_chart_path is not None:
+        print(f"Transformer speeches chart: {result.transformer_speeches_chart_path}")
     print(f"HTML report: {result.report_html_path}")
     print(f"Snapshot rows: {result.rows_written}")
     return 0

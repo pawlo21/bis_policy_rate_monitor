@@ -24,6 +24,11 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pandas as pd
 
+from bis_prates.speech_transformer import (
+    TransformerSpeechAnalysis,
+    TransformerSpeechClassifier,
+)
+
 
 log = logging.getLogger(__name__)
 
@@ -66,12 +71,14 @@ class SpeechesAnalysis:
     chart_path: Path
     term_frequencies: pd.DataFrame
     policy_moves: pd.DataFrame
+    transformer_analysis: Optional[TransformerSpeechAnalysis] = None
 
 
 def build_speeches_analysis(
     policy_rate_data: pd.DataFrame,
     chart_path: Path,
     today: Optional[datetime] = None,
+    with_transformer: bool = False,
 ) -> Optional[SpeechesAnalysis]:
     """Build the speeches extension output, returning None when no data loads."""
     speeches = load_recent_speeches(today=today)
@@ -89,10 +96,23 @@ def build_speeches_analysis(
         start=term_frequencies["month"].min(),
     )
     render_speeches_chart(term_frequencies, policy_moves, chart_path)
+    transformer_analysis = None
+    if with_transformer:
+        try:
+            transformer_analysis = TransformerSpeechClassifier().analyze(
+                speeches=speeches,
+                chart_path=chart_path.with_name("speeches_transformer.png"),
+            )
+        except Exception as error:
+            # Keep the keyword-based speeches report even if the optional
+            # transformer dependency/model is unavailable.
+            log.warning("Skipping transformer speech analysis: %s", error)
+
     return SpeechesAnalysis(
         chart_path=chart_path,
         term_frequencies=term_frequencies,
         policy_moves=policy_moves,
+        transformer_analysis=transformer_analysis,
     )
 
 
