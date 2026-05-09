@@ -55,5 +55,5 @@ speeches extension. It attempts to load the last two years of BIS central
 bankers' speeches via `gingado`; if that library is unavailable in the active
 Python runtime, it falls back to the same yearly BIS speech ZIP files. The
 extension counts fixed terms (`inflation`, `rate`, `tightening`) and compares
-monthly term counts with average absolute monthly policy-rate moves in
+monthly term counts with signed monthly policy-rate moves by country in
 `out/speeches_terms.png` and `out/report.html`.

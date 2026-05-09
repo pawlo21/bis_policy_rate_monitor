@@ -224,7 +224,8 @@ def _fake_speeches_provider(
     policy_moves = pd.DataFrame(
         {
             "month": [pd.Timestamp("2024-01-01")],
-            "avg_abs_policy_move_bps": [25.0],
+            "requested_code": ["US"],
+            "policy_move_bps": [25.0],
         }
     )
     render_speeches_chart(term_frequencies, policy_moves, chart_path)

@@ -82,7 +82,7 @@ class SpeechesTest(unittest.TestCase):
         self.assertEqual(july["rate"], 1)
         self.assertEqual(july["tightening"], 1)
 
-    def test_compute_monthly_policy_moves_uses_average_absolute_bps(self) -> None:
+    def test_compute_monthly_policy_moves_returns_signed_country_bps(self) -> None:
         policy_rates = pd.DataFrame(
             {
                 "requested_code": ["US", "US", "GB", "GB"],
@@ -92,14 +92,22 @@ class SpeechesTest(unittest.TestCase):
                     "2024-01-31",
                     "2024-02-29",
                 ],
-                "obs_value_numeric": [5.00, 5.25, 4.00, 4.50],
+                "obs_value_numeric": [5.00, 5.25, 4.50, 4.00],
             }
         )
 
         result = compute_monthly_policy_moves(policy_rates)
 
-        february = result[result["month"].eq(pd.Timestamp("2024-02-01"))].iloc[0]
-        self.assertEqual(february["avg_abs_policy_move_bps"], 37.5)
+        february = result[result["month"].eq(pd.Timestamp("2024-02-01"))]
+        self.assertEqual(set(february["requested_code"]), {"GB", "US"})
+        self.assertEqual(
+            february.loc[february["requested_code"].eq("US"), "policy_move_bps"].iloc[0],
+            25.0,
+        )
+        self.assertEqual(
+            february.loc[february["requested_code"].eq("GB"), "policy_move_bps"].iloc[0],
+            -50.0,
+        )
 
     def test_term_summary_and_chart_render(self) -> None:
         frequencies = pd.DataFrame(
@@ -114,8 +122,9 @@ class SpeechesTest(unittest.TestCase):
         )
         moves = pd.DataFrame(
             {
-                "month": [pd.Timestamp("2024-06-01")],
-                "avg_abs_policy_move_bps": [25.0],
+                "month": [pd.Timestamp("2024-06-01"), pd.Timestamp("2024-06-01")],
+                "requested_code": ["US", "GB"],
+                "policy_move_bps": [25.0, -25.0],
             }
         )
 
