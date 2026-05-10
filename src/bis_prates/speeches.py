@@ -65,6 +65,8 @@ def build_speeches_analysis(
     chart_path: Path,
     today: datetime | None = None,
     assess_sentiment: bool = False,
+    sentiment_batch_size: int = 32,
+    sentiment_sentences_per_speech: int | None = 12,
 ) -> SpeechesAnalysis | None:
     """Build the speeches extension output, returning None when no data loads."""
     speeches = load_recent_speeches(today=today)
@@ -85,7 +87,10 @@ def build_speeches_analysis(
     sentiment_analysis = None
     if assess_sentiment:
         try:
-            sentiment_analysis = SpeechSentimentAssessor().analyze(
+            sentiment_analysis = SpeechSentimentAssessor(
+                batch_size=sentiment_batch_size,
+                max_sentences_per_speech=sentiment_sentences_per_speech,
+            ).analyze(
                 speeches=speeches,
                 chart_path=chart_path.with_name("speeches_sentiment.png"),
             )

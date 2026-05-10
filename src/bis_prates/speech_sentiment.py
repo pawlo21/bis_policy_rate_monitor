@@ -67,8 +67,8 @@ class SpeechSentimentAssessor:
     def __init__(
         self,
         model_name: str = DEFAULT_SENTIMENT_MODEL,
-        batch_size: int = 16,
-        max_sentences_per_speech: int | None = None,
+        batch_size: int = 32,
+        max_sentences_per_speech: int | None = 12,
         pipeline_factory: Callable[[str], object] | None = None,
     ) -> None:
         """Configure the model and batching used for local inference."""

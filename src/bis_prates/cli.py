@@ -6,7 +6,6 @@ import argparse
 import logging
 import sys
 from collections.abc import Sequence
-from functools import partial
 
 from bis_prates.fetch import BisBulkFetcher
 from bis_prates.report import PolicyRateReporter
@@ -86,6 +85,23 @@ def build_parser() -> argparse.ArgumentParser:
             "with brjoey/CBSI-CentralBank-BERT and add a sentiment chart"
         ),
     )
+    report_parser.add_argument(
+        "--sentiment-sentences-per-speech",
+        type=int,
+        default=8,
+        metavar="N",
+        help=(
+            "maximum policy-relevant sentences to classify per speech; use 0 "
+            "to classify all matching sentences"
+        ),
+    )
+    report_parser.add_argument(
+        "--sentiment-batch-size",
+        type=int,
+        default=32,
+        metavar="N",
+        help="number of speech sentences sent to the transformer per batch",
+    )
     report_parser.set_defaults(func=_report)
 
     return parser
@@ -135,13 +151,31 @@ def _report(args: argparse.Namespace) -> int:
     if args.assess_sentiment and not args.speeches:
         print("Report failed: --assess-sentiment requires --speeches=true", file=sys.stderr)
         return 1
+    if args.sentiment_sentences_per_speech < 0:
+        print("Report failed: --sentiment-sentences-per-speech must be >= 0", file=sys.stderr)
+        return 1
+    if args.sentiment_batch_size < 1:
+        print("Report failed: --sentiment-batch-size must be >= 1", file=sys.stderr)
+        return 1
 
     try:
-        speeches_provider = (
-            partial(build_speeches_analysis, assess_sentiment=args.assess_sentiment)
-            if args.speeches
-            else None
-        )
+        speeches_provider = None
+        if args.speeches:
+
+            def speeches_provider(report_data, chart_path):
+                sentence_limit = (
+                    None
+                    if args.sentiment_sentences_per_speech == 0
+                    else args.sentiment_sentences_per_speech
+                )
+                return build_speeches_analysis(
+                    report_data,
+                    chart_path,
+                    assess_sentiment=args.assess_sentiment,
+                    sentiment_batch_size=args.sentiment_batch_size,
+                    sentiment_sentences_per_speech=sentence_limit,
+                )
+
         result = PolicyRateReporter(
             speeches_provider=speeches_provider,
         ).report(
