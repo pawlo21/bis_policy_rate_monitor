@@ -60,7 +60,7 @@ class TransformerSpeechClassifier:
         self,
         model_name: str = DEFAULT_TRANSFORMER_MODEL,
         batch_size: int = 8,
-        max_sentences_per_speech: int = 8,
+        max_sentences_per_speech: Optional[int] = None,
         pipeline_factory: Optional[Callable[[str], object]] = None,
     ) -> None:
         self.model_name = model_name
@@ -119,7 +119,9 @@ class TransformerSpeechClassifier:
                 sentence
                 for sentence in sentences
                 if POLICY_SENTENCE_PATTERN.search(sentence)
-            ][: self.max_sentences_per_speech]
+            ]
+            if self.max_sentences_per_speech is not None:
+                policy_sentences = policy_sentences[: self.max_sentences_per_speech]
 
             for sentence in policy_sentences:
                 rows.append(
