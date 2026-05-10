@@ -65,6 +65,9 @@ jobs:
           if-no-files-found: warn
 
       - name: SonarQube Scan
+        # Only scan once per workflow run (avoid duplicate 3.11/3.12 analyses
+        # racing against the same SonarCloud project).
+        if: matrix.python-version == '3.11'
         uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
