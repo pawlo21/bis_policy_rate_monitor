@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 from bis_prates.metadata import (
     CountryCodeValidationError,
-    fetch_reference_area_codes,
     discover_dataflow_reference_from_csv,
+    fetch_reference_area_codes,
     resolve_raw_archive_path,
     validate_country_codes,
 )
@@ -57,10 +57,13 @@ class MetadataTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with self.assertLogs("bis_prates.metadata", level="INFO") as logs, patch(
-                "bis_prates.metadata.discover_dataflow_reference_from_csv",
-                side_effect=TimeoutError("metadata timeout"),
-            ) as discover:
+            with (
+                self.assertLogs("bis_prates.metadata", level="INFO") as logs,
+                patch(
+                    "bis_prates.metadata.discover_dataflow_reference_from_csv",
+                    side_effect=TimeoutError("metadata timeout"),
+                ) as discover,
+            ):
                 codes = fetch_reference_area_codes(
                     archive_path=Path(tmp_dir) / "missing.zip",
                     cache_path=cache_path,
@@ -77,10 +80,13 @@ class MetadataTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_path = Path(tmp_dir) / "missing_cache.json"
 
-            with self.assertLogs("bis_prates.metadata", level="WARNING") as logs, patch(
-                "bis_prates.metadata.discover_dataflow_reference_from_csv",
-                side_effect=TimeoutError("metadata timeout"),
-            ) as discover:
+            with (
+                self.assertLogs("bis_prates.metadata", level="WARNING") as logs,
+                patch(
+                    "bis_prates.metadata.discover_dataflow_reference_from_csv",
+                    side_effect=TimeoutError("metadata timeout"),
+                ) as discover,
+            ):
                 codes = fetch_reference_area_codes(
                     archive_path=Path(tmp_dir) / "missing.zip",
                     cache_path=cache_path,

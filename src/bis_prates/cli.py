@@ -5,13 +5,12 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from bis_prates.fetch import BisBulkFetcher
 from bis_prates.report import PolicyRateReporter
 from bis_prates.speeches import build_speeches_analysis
 from bis_prates.transform import PolicyRateTransformer
-
 
 LOG_FORMAT = "%(levelname)s %(name)s: %(message)s"
 
@@ -48,8 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
         "report",
         help="generate summary outputs and an HTML report",
         description=(
-            "Generate a latest snapshot summary and report for a comma-separated "
-            "list of countries."
+            "Generate a latest snapshot summary and report for a comma-separated list of countries."
         ),
     )
     report_parser.add_argument(
@@ -70,8 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=_parse_bool,
         metavar="true|false",
         help=(
-            "include the optional BIS speeches mini-NLP section; use "
-            "--speeches=true to enable it"
+            "include the optional BIS speeches mini-NLP section; use --speeches=true to enable it"
         ),
     )
     report_parser.set_defaults(func=_report)
@@ -150,7 +147,7 @@ def _parse_bool(value: object) -> bool:
     raise argparse.ArgumentTypeError("Expected true or false.")
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     parser = build_parser()
     args_list = list(argv) if argv is not None else sys.argv[1:]

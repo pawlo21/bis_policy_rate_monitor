@@ -8,10 +8,10 @@ import html
 import json
 import logging
 import os
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Mapping, Optional, Tuple
 
 os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/bis_prates_matplotlib")
 os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
@@ -33,7 +33,6 @@ from bis_prates.speeches import (
     SpeechesAnalysis,
     term_frequency_summary,
 )
-
 
 log = logging.getLogger(__name__)
 
@@ -72,9 +71,9 @@ class ReportResult:
     summary_json_path: Path
     chart_path: Path
     report_html_path: Path
-    countries: List[str]
+    countries: list[str]
     rows_written: int
-    speeches_chart_path: Optional[Path] = None
+    speeches_chart_path: Path | None = None
 
 
 class PolicyRateReporter:
@@ -85,12 +84,8 @@ class PolicyRateReporter:
         tidy_data_path: Path = DEFAULT_TIDY_DATA_PATH,
         output_dir: Path = DEFAULT_OUTPUT_DIR,
         preferred_frequency: str = PREFERRED_FREQUENCY,
-        metadata_provider: Callable[[], Optional[Mapping[str, str]]] = (
-            fetch_reference_area_codes
-        ),
-        speeches_provider: Optional[
-            Callable[[pd.DataFrame, Path], Optional[SpeechesAnalysis]]
-        ] = None,
+        metadata_provider: Callable[[], Mapping[str, str] | None] = (fetch_reference_area_codes),
+        speeches_provider: Callable[[pd.DataFrame, Path], SpeechesAnalysis | None] | None = None,
     ) -> None:
         self.tidy_data_path = Path(tidy_data_path)
         self.output_dir = Path(output_dir)
@@ -163,7 +158,7 @@ class PolicyRateReporter:
     def _build_speeches_analysis(
         self,
         report_data: pd.DataFrame,
-    ) -> Optional[SpeechesAnalysis]:
+    ) -> SpeechesAnalysis | None:
         if self.speeches_provider is None:
             self.speeches_chart_path.unlink(missing_ok=True)
             return None
@@ -180,11 +175,8 @@ class PolicyRateReporter:
         return speeches_analysis
 
 
-def parse_country_codes(countries: Iterable[str]) -> List[str]:
-    if isinstance(countries, str):
-        raw_codes = countries.split(",")
-    else:
-        raw_codes = countries
+def parse_country_codes(countries: Iterable[str]) -> list[str]:
+    raw_codes = countries.split(",") if isinstance(countries, str) else countries
 
     codes = []
     for code in raw_codes:
@@ -209,20 +201,17 @@ def load_tidy_data(path: Path) -> pd.DataFrame:
 
 
 def resolve_country_codes(
-    requested_codes: List[str],
+    requested_codes: list[str],
     data: pd.DataFrame,
-    metadata_codes: Optional[Mapping[str, str]] = None,
-) -> Dict[str, str]:
+    metadata_codes: Mapping[str, str] | None = None,
+) -> dict[str, str]:
     using_sdmx_metadata = metadata_codes is not None
     if metadata_codes is None:
         log.warning(
             "BIS SDMX metadata validation unavailable; falling back to local "
             "dataset code validation."
         )
-        resolved = {
-            code: COUNTRY_ALIASES.get(code, code)
-            for code in requested_codes
-        }
+        resolved = {code: COUNTRY_ALIASES.get(code, code) for code in requested_codes}
     else:
         resolved = validate_country_codes(requested_codes, metadata_codes)
 
@@ -246,8 +235,8 @@ def resolve_country_codes(
 
 def select_report_data(
     data: pd.DataFrame,
-    requested_codes: List[str],
-    resolved_codes: Dict[str, str],
+    requested_codes: list[str],
+    resolved_codes: dict[str, str],
     preferred_frequency: str,
 ) -> pd.DataFrame:
     frames = []
@@ -269,8 +258,8 @@ def select_report_data(
 
 def compute_latest_snapshot(
     report_data: pd.DataFrame,
-    requested_codes: List[str],
-    resolved_codes: Dict[str, str],
+    requested_codes: list[str],
+    resolved_codes: dict[str, str],
 ) -> pd.DataFrame:
     rows = []
     for requested_code in requested_codes:
@@ -281,9 +270,7 @@ def compute_latest_snapshot(
         latest = country_data.iloc[-1]
         previous = country_data.iloc[-2] if len(country_data) > 1 else None
         latest_rate = float(latest["obs_value_numeric"])
-        previous_rate = (
-            float(previous["obs_value_numeric"]) if previous is not None else None
-        )
+        previous_rate = float(previous["obs_value_numeric"]) if previous is not None else None
         change = latest_rate - previous_rate if previous_rate is not None else None
 
         rows.append(
@@ -295,9 +282,7 @@ def compute_latest_snapshot(
                 "latest_date": latest["period_start"].date().isoformat(),
                 "latest_rate": latest_rate,
                 "previous_date": (
-                    previous["period_start"].date().isoformat()
-                    if previous is not None
-                    else ""
+                    previous["period_start"].date().isoformat() if previous is not None else ""
                 ),
                 "previous_rate": previous_rate,
                 "change_from_previous": change,
@@ -318,11 +303,11 @@ def compute_latest_snapshot(
 def write_summary_json(
     summary: pd.DataFrame,
     path: Path,
-    requested_codes: List[str],
-    resolved_codes: Dict[str, str],
+    requested_codes: list[str],
+    resolved_codes: dict[str, str],
     start: str,
     source_path: Path,
-    speeches_analysis: Optional[SpeechesAnalysis] = None,
+    speeches_analysis: SpeechesAnalysis | None = None,
 ) -> None:
     payload = {
         "generated_at_utc": _utc_now(),
@@ -377,20 +362,16 @@ def write_html_report(
     summary: pd.DataFrame,
     chart_path: Path,
     report_path: Path,
-    requested_codes: List[str],
-    resolved_codes: Dict[str, str],
+    requested_codes: list[str],
+    resolved_codes: dict[str, str],
     start: str,
-    speeches_analysis: Optional[SpeechesAnalysis] = None,
+    speeches_analysis: SpeechesAnalysis | None = None,
 ) -> None:
     chart_b64 = base64.b64encode(chart_path.read_bytes()).decode("ascii")
     table_html = _summary_table_html(summary)
     speeches_html = _speeches_section_html(speeches_analysis)
     country_label = ", ".join(
-        (
-            code
-            if resolved_codes[code] == code
-            else f"{code} ({resolved_codes[code]})"
-        )
+        (code if resolved_codes[code] == code else f"{code} ({resolved_codes[code]})")
         for code in requested_codes
     )
 
@@ -439,15 +420,10 @@ def _select_frequency(country_data: pd.DataFrame, preferred_frequency: str) -> s
     return str(country_data["freq_code"].iloc[0])
 
 
-def _json_records(frame: pd.DataFrame) -> List[Dict[str, object]]:
+def _json_records(frame: pd.DataFrame) -> list[dict[str, object]]:
     records = []
     for record in frame.to_dict("records"):
-        records.append(
-            {
-                key: _json_scalar(value)
-                for key, value in record.items()
-            }
-        )
+        records.append({key: _json_scalar(value) for key, value in record.items()})
     return records
 
 
@@ -485,7 +461,9 @@ def _summary_table_html(summary: pd.DataFrame) -> str:
                 rendered = f"{float(value):.4g}"
             else:
                 rendered = str(value)
-            css_class = ' class="numeric"' if column in {"latest_rate", "change_from_previous"} else ""
+            css_class = (
+                ' class="numeric"' if column in {"latest_rate", "change_from_previous"} else ""
+            )
             cells.append(f"<td{css_class}>{html.escape(rendered)}</td>")
         rows.append(f"<tr>{''.join(cells)}</tr>")
 
@@ -493,7 +471,7 @@ def _summary_table_html(summary: pd.DataFrame) -> str:
 
 
 def _speeches_section_html(
-    speeches_analysis: Optional[SpeechesAnalysis],
+    speeches_analysis: SpeechesAnalysis | None,
 ) -> str:
     if speeches_analysis is None:
         return ""
@@ -526,10 +504,7 @@ def _speech_terms_table_html(term_frequencies: pd.DataFrame) -> str:
         cells = []
         for column in columns:
             value = row[column]
-            if column == "mentions_per_speech":
-                rendered = f"{float(value):.2f}"
-            else:
-                rendered = str(value)
+            rendered = f"{float(value):.2f}" if column == "mentions_per_speech" else str(value)
             css_class = ' class="numeric"' if column != "term" else ""
             cells.append(f"<td{css_class}>{html.escape(rendered)}</td>")
         rows.append(f"<tr>{''.join(cells)}</tr>")
@@ -546,12 +521,7 @@ def _speech_month_label(term_frequencies: pd.DataFrame) -> str:
 
 
 def _utc_now() -> str:
-    return (
-        datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 @contextlib.contextmanager
