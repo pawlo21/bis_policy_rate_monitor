@@ -39,7 +39,6 @@ class SpeechesTest(unittest.TestCase):
         loader.assert_called_once_with(2024, timeout=7)
         self.assertEqual(len(result), 1)
 
-
     def test_compute_term_frequencies_counts_terms_by_month(self) -> None:
         speeches = pd.DataFrame(
             {

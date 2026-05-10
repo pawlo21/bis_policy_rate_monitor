@@ -126,9 +126,7 @@ def load_recent_speeches(
         return _empty_speeches_frame()
 
     speeches = pd.concat(frames, ignore_index=True)
-    speeches = speeches[
-        speeches["date"].between(cutoff, today_ts, inclusive="both")
-    ].copy()
+    speeches = speeches[speeches["date"].between(cutoff, today_ts, inclusive="both")].copy()
     speeches = speeches.sort_values("date").reset_index(drop=True)
     log.info("Loaded %d BIS speeches since %s.", len(speeches), cutoff.date())
     return speeches
@@ -361,9 +359,7 @@ def _download_speeches_year(year: int, timeout: int) -> pd.DataFrame:
         return _read_speeches_csv(archive, csv_name, year)
 
 
-def _read_speeches_csv(
-    archive: zipfile.ZipFile, csv_name: str, year: int
-) -> pd.DataFrame:
+def _read_speeches_csv(archive: zipfile.ZipFile, csv_name: str, year: int) -> pd.DataFrame:
     # BIS speech CSVs are usually UTF-8 but occasional translated content has
     # arrived as Latin-1. Re-open for the fallback because pandas may have
     # consumed part of the stream before the decode error surfaced.
