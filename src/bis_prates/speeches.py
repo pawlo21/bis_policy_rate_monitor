@@ -39,22 +39,11 @@ USER_AGENT = "bis-policy-rate-monitor/0.1"
 # words so "policy rate" is counted once, not again as a standalone "rate".
 TERM_PATTERNS = {
     "inflation": (
-        r"\binflation(?:ary)?\b"
-        r"|\bconsumer prices?\b"
-        r"|\bprice stability\b"
-        r"|\bcpi\b"
+        r"\binflation(?:ary)?\b" r"|\bconsumer prices?\b" r"|\bprice stability\b" r"|\bcpi\b"
     ),
-    "rate": (
-        r"\bpolicy rates?\b"
-        r"|\binterest rates?\b"
-        r"|\bbank rates?\b"
-        r"|\brates?\b"
-    ),
+    "rate": (r"\bpolicy rates?\b" r"|\binterest rates?\b" r"|\bbank rates?\b" r"|\brates?\b"),
     "tightening": (
-        r"\btighten(?:ing|ed|s)?\b"
-        r"|\btighter\b"
-        r"|\bhik(?:e|es|ed|ing)\b"
-        r"|\brestrictive\b"
+        r"\btighten(?:ing|ed|s)?\b" r"|\btighter\b" r"|\bhik(?:e|es|ed|ing)\b" r"|\brestrictive\b"
     ),
 }
 
