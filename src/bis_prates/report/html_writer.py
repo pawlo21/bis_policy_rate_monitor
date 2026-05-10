@@ -54,6 +54,12 @@ def write_html_report(
   <img src="data:image/png;base64,{chart_b64}" alt="Policy-rate chart">
   <h2>Latest Snapshot</h2>
   {table_html}
+  <p class="meta">
+    <em>change_from_previous</em> is the delta between the two latest valid
+    observations of the selected frequency, not a fixed period-over-period
+    change. See <em>latest_date</em> vs the underlying <code>previous_date</code>
+    column in the CSV/JSON for the actual gap.
+  </p>
   {speeches_html}
 </body>
 </html>
@@ -68,11 +74,13 @@ def _summary_table_html(summary: pd.DataFrame) -> str:
         "frequency",
         "latest_date",
         "latest_rate",
+        "days_since_latest",
         "change_from_previous",
         "unit_measure",
         "decimals",
         "title",
     ]
+    numeric_columns = {"latest_rate", "change_from_previous", "days_since_latest"}
     headers = "".join(f"<th>{html.escape(column)}</th>" for column in columns)
     rows = []
     for _, row in summary.iterrows():
@@ -83,11 +91,11 @@ def _summary_table_html(summary: pd.DataFrame) -> str:
                 rendered = ""
             elif column in {"latest_rate", "change_from_previous"}:
                 rendered = f"{float(value):.4g}"
+            elif column == "days_since_latest":
+                rendered = str(int(value))
             else:
                 rendered = str(value)
-            css_class = (
-                ' class="numeric"' if column in {"latest_rate", "change_from_previous"} else ""
-            )
+            css_class = ' class="numeric"' if column in numeric_columns else ""
             cells.append(f"<td{css_class}>{html.escape(rendered)}</td>")
         rows.append(f"<tr>{''.join(cells)}</tr>")
 

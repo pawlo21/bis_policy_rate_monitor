@@ -6,6 +6,7 @@ import contextlib
 import logging
 import os
 from collections.abc import Iterator, Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -21,6 +22,7 @@ REPORT_COLUMNS = [
     "frequency",
     "latest_date",
     "latest_rate",
+    "days_since_latest",
     "previous_date",
     "previous_rate",
     "change_from_previous",
@@ -116,8 +118,23 @@ def compute_latest_snapshot(
     report_data: pd.DataFrame,
     requested_codes: list[str],
     resolved_codes: dict[str, str],
+    *,
+    as_of: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
-    """Build a per-country latest-observation summary with the change from the previous obs."""
+    """Build a per-country latest-observation summary.
+
+    `change_from_previous` is the delta between the last two valid observations
+    of the selected frequency, *not* a fixed period-over-period change. The
+    accompanying `previous_date` column shows the actual gap, which may be a
+    single period or longer if the series has missing observations.
+
+    `days_since_latest` is the calendar-day age of the latest observation
+    relative to `as_of` (default: today UTC) — a freshness signal that catches
+    silently stale series.
+    """
+    if as_of is None:
+        as_of = pd.Timestamp(datetime.now(UTC).date())
+
     rows = []
     for requested_code in requested_codes:
         country_data = report_data[report_data["requested_code"].eq(requested_code)]
@@ -129,6 +146,7 @@ def compute_latest_snapshot(
         latest_rate = float(latest["obs_value_numeric"])
         previous_rate = float(previous["obs_value_numeric"]) if previous is not None else None
         change = latest_rate - previous_rate if previous_rate is not None else None
+        days_since_latest = int((as_of - latest["period_start"]).days)
 
         rows.append(
             {
@@ -138,6 +156,7 @@ def compute_latest_snapshot(
                 "frequency": latest["frequency"],
                 "latest_date": latest["period_start"].date().isoformat(),
                 "latest_rate": latest_rate,
+                "days_since_latest": days_since_latest,
                 "previous_date": (
                     previous["period_start"].date().isoformat() if previous is not None else ""
                 ),

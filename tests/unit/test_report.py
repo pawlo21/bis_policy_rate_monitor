@@ -11,8 +11,11 @@ import pandas as pd
 
 from bis_prates.report import (
     PolicyRateReporter,
+    compute_latest_snapshot,
+    load_tidy_data,
     parse_country_codes,
     resolve_country_codes,
+    select_report_data,
 )
 from bis_prates.speeches import SpeechesAnalysis, render_speeches_chart
 
@@ -159,6 +162,28 @@ class ReportTest(unittest.TestCase):
                 "falling back to local dataset code validation",
                 "\n".join(logs.output),
             )
+
+    def test_compute_latest_snapshot_includes_days_since_latest(self) -> None:
+        """`days_since_latest` is the calendar-day age of the latest obs vs `as_of`."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tidy_path = Path(tmp_dir) / "policy_rates_tidy.parquet"
+            _write_tidy_fixture(tidy_path)
+            data = load_tidy_data(tidy_path)
+            report_data = select_report_data(
+                data=data,
+                requested_codes=["US"],
+                resolved_codes={"US": "US"},
+                preferred_frequency="D",
+            )
+
+            summary = compute_latest_snapshot(
+                report_data,
+                ["US"],
+                {"US": "US"},
+                as_of=pd.Timestamp("2024-01-10"),
+            )
+
+            self.assertEqual(int(summary.iloc[0]["days_since_latest"]), 7)
 
 
 def _write_tidy_fixture(path: Path) -> None:

@@ -21,7 +21,13 @@ def write_summary_json(
     source_path: Path,
     speeches_analysis: SpeechesAnalysis | None = None,
 ) -> None:
-    """Serialise the summary frame plus run metadata to a JSON file."""
+    """Serialise the summary frame plus run metadata to a JSON file.
+
+    Note: `change_from_previous` in each row is the delta between the last two
+    valid observations of the selected frequency. The accompanying
+    `previous_date` reveals the actual gap (which may exceed one period when the
+    series has missing observations).
+    """
     payload = {
         "generated_at_utc": utc_now(),
         "source_path": str(source_path),
