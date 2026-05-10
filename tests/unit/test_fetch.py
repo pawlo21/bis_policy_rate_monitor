@@ -1,3 +1,5 @@
+"""Unit tests for `BisBulkFetcher` discovery and caching behaviour."""
+
 from __future__ import annotations
 
 import json
@@ -15,7 +17,11 @@ DATASET = DiscoveredDataset(
 
 
 class FetchDiscoveryTest(unittest.TestCase):
+    """Discovery of the policy-rates link on the bulk-downloads page."""
+
     def test_discovers_policy_rates_csv_flat_link(self) -> None:
+        """Anchor with matching label is parsed into a `DiscoveredDataset`."""
+
         class FakeFetcher(BisBulkFetcher):
             def _http_get_text(self, url: str) -> str:
                 return """
@@ -42,7 +48,10 @@ class FetchDiscoveryTest(unittest.TestCase):
 
 
 class FetchCacheTest(unittest.TestCase):
+    """Conditional re-download logic driven by ETag/Last-Modified/Content-Length."""
+
     def test_uses_cache_when_remote_metadata_is_unchanged(self) -> None:
+        """No download happens when remote validators match the manifest."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_dir = Path(tmp_dir)
             archive_path = cache_dir / "WS_CBPOL_csv_flat.zip"
@@ -82,6 +91,7 @@ class FetchCacheTest(unittest.TestCase):
             self.assertEqual(result.archive_path, archive_path)
 
     def test_uses_cache_when_validator_changes_but_release_and_size_match(self) -> None:
+        """A new ETag alone is not enough to trigger re-download if size and release-date agree."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_dir = Path(tmp_dir)
             archive_path = cache_dir / "WS_CBPOL_csv_flat.zip"
@@ -126,6 +136,7 @@ class FetchCacheTest(unittest.TestCase):
             self.assertEqual(archive_path.read_bytes(), b"old")
 
     def test_downloads_when_remote_size_changes(self) -> None:
+        """A different `Content-Length` invalidates the cache and triggers a fresh download."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_dir = Path(tmp_dir)
             archive_path = cache_dir / "WS_CBPOL_csv_flat.zip"

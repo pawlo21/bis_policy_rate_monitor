@@ -91,6 +91,8 @@ MISSING_OBSERVATION_COLUMNS = [
 
 @dataclass(frozen=True)
 class TransformResult:
+    """Counts and paths summarising a `PolicyRateTransformer.transform()` run."""
+
     archive_path: Path
     output_path: Path
     manifest_path: Path
@@ -113,6 +115,11 @@ class PolicyRateTransformer:
         raw_csv_name: str = RAW_CSV_NAME,
         chunksize: int = DEFAULT_CHUNKSIZE,
     ) -> None:
+        """Configure input/output paths and CSV chunk size.
+
+        When `archive_path` is `None` the raw archive path is read from
+        `fetch_manifest_path`.
+        """
         self.archive_path = archive_path
         self.output_path = Path(output_path)
         self.manifest_path = Path(manifest_path)
@@ -122,6 +129,12 @@ class PolicyRateTransformer:
         self.chunksize = chunksize
 
     def transform(self) -> TransformResult:
+        """Stream the raw CSV in chunks and write the tidy parquet dataset.
+
+        Deduplicates on `(freq_code, ref_area_code, time_period)`, raising
+        if the same key appears with conflicting fingerprints. Rows with
+        missing observations are diverted to a separate audit CSV.
+        """
         archive_path = self._resolve_archive_path()
         if not archive_path.exists():
             raise FileNotFoundError(
@@ -258,12 +271,19 @@ class PolicyRateTransformer:
 
 
 def tidy_policy_rate_row(raw_row: dict[str, str]) -> dict[str, str]:
+    """Tidy a single raw BIS row. Mostly useful in tests."""
     raw_frame = pd.DataFrame([raw_row])
     tidy_frame = tidy_policy_rate_frame(raw_frame)
     return tidy_frame.iloc[0].to_dict()
 
 
 def tidy_policy_rate_frame(raw_frame: pd.DataFrame) -> pd.DataFrame:
+    """Convert a raw BIS chunk into the project's tidy schema.
+
+    Splits SDMX `code:label` columns, cleans text, normalises decimals
+    via `Decimal` (no float round-trip), and parses time-period strings
+    into `period_start` ISO dates.
+    """
     _validate_columns(raw_frame.columns)
 
     tidy_frame = pd.DataFrame(index=raw_frame.index)
@@ -307,6 +327,7 @@ def tidy_policy_rate_frame(raw_frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def find_missing_observations(tidy_frame: pd.DataFrame) -> pd.DataFrame:
+    """Return the subset of `tidy_frame` whose obs is empty/`NaN` or status `M`."""
     obs_value = clean_text_series(tidy_frame["obs_value"])
     obs_status_code = clean_text_series(tidy_frame["obs_status_code"])
     missing_mask = obs_value.isin(["", "NaN"]) | obs_status_code.eq("M")
@@ -328,6 +349,7 @@ def _write_parquet_chunk(
 
 
 def split_code_label(value: str) -> tuple[str, str]:
+    """Split an SDMX `code: label` string into `(code, label)` parts."""
     value = clean_text(value)
     if not value:
         return "", ""
@@ -340,6 +362,7 @@ def split_code_label(value: str) -> tuple[str, str]:
 
 
 def split_code_label_series(series: pd.Series) -> pd.DataFrame:
+    """Vectorised counterpart of `split_code_label` returning a `code`/`label` frame."""
     cleaned = clean_text_series(series)
     parts = cleaned.str.partition(":")
     has_separator = parts[1].eq(":")
@@ -354,6 +377,7 @@ def split_code_label_series(series: pd.Series) -> pd.DataFrame:
 
 
 def clean_text(value: str | None) -> str:
+    """Collapse internal whitespace and strip; return empty string on `None`."""
     if value is None:
         return ""
 
@@ -361,10 +385,16 @@ def clean_text(value: str | None) -> str:
 
 
 def clean_text_series(series: pd.Series) -> pd.Series:
+    """Vectorised `clean_text` for a pandas Series."""
     return series.fillna("").astype(str).str.replace(r"\s+", " ", regex=True).str.strip()
 
 
 def normalize_decimal(value: str) -> str:
+    """Render `value` as a decimal string without float round-trip loss.
+
+    Uses `Decimal` parsing so trailing zeros and precision are preserved.
+    Empty input returns `""`; non-numeric input raises `ValueError`.
+    """
     value = clean_text(value)
     if not value:
         return ""
@@ -376,6 +406,12 @@ def normalize_decimal(value: str) -> str:
 
 
 def period_to_start_date(period: str) -> str:
+    """Convert a BIS time-period string to an ISO start date.
+
+    Supports daily (`YYYY-MM-DD`), monthly (`YYYY-MM`), quarterly
+    (`YYYY-Q1`..`Q4`), and annual (`YYYY`) periods. Raises `ValueError`
+    for unrecognised formats.
+    """
     period = clean_text(period)
     if not period:
         return ""

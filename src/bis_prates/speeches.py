@@ -50,6 +50,8 @@ TERM_PATTERNS = {
 
 @dataclass(frozen=True)
 class SpeechesAnalysis:
+    """Output of the lexicon-based speeches extension: chart path plus the underlying tables."""
+
     chart_path: Path
     term_frequencies: pd.DataFrame
     policy_moves: pd.DataFrame

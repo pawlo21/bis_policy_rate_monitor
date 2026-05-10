@@ -1,3 +1,5 @@
+"""Unit tests for SDMX metadata discovery, caching, and country-code validation."""
+
 from __future__ import annotations
 
 import json
@@ -17,7 +19,10 @@ from bis_prates.metadata import (
 
 
 class MetadataTest(unittest.TestCase):
+    """SDMX dataflow discovery, codelist caching, and country-code validation."""
+
     def test_discover_dataflow_reference_from_downloaded_csv(self) -> None:
+        """`STRUCTURE_ID` parsed from the BIS CSV yields the right agency/id/version."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             archive_path = Path(tmp_dir) / "bulk.zip"
             with zipfile.ZipFile(archive_path, "w") as archive:
@@ -34,6 +39,7 @@ class MetadataTest(unittest.TestCase):
         self.assertEqual(reference.version, "1.0")
 
     def test_resolve_raw_archive_path_uses_fetch_manifest(self) -> None:
+        """The raw archive path is read from the fetch manifest when present."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             archive_path = root / "downloaded_name.zip"
@@ -50,6 +56,7 @@ class MetadataTest(unittest.TestCase):
         self.assertEqual(resolved, archive_path)
 
     def test_fetch_reference_area_codes_falls_back_to_cache(self) -> None:
+        """When live SDMX fails, the cached codelist on disk is returned."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_path = Path(tmp_dir) / "sdmx_ref_area_codes.json"
             cache_path.write_text(
@@ -78,6 +85,7 @@ class MetadataTest(unittest.TestCase):
         self.assertIn("Using cached BIS SDMX reference-area codes", "\n".join(logs.output))
 
     def test_fetch_reference_area_codes_returns_none_without_cache(self) -> None:
+        """`None` is returned when both live SDMX and the cache are unavailable."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             cache_path = Path(tmp_dir) / "missing_cache.json"
 
@@ -100,6 +108,7 @@ class MetadataTest(unittest.TestCase):
         self.assertIn("Skipping BIS SDMX validation", "\n".join(logs.output))
 
     def test_validate_country_codes_accepts_euro_area_alias(self) -> None:
+        """The `EA -> XM` alias resolves Euro area to its BIS SDMX code."""
         resolved = validate_country_codes(
             ["US", "EA"],
             {
@@ -111,6 +120,7 @@ class MetadataTest(unittest.TestCase):
         self.assertEqual(resolved, {"US": "US", "EA": "XM"})
 
     def test_validate_country_codes_suggests_common_alternative(self) -> None:
+        """`UK` raises and surfaces `GB` as a suggested alternative."""
         with self.assertRaises(CountryCodeValidationError) as ctx:
             validate_country_codes(
                 ["UK"],
