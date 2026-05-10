@@ -16,7 +16,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 import matplotlib.dates as mdates
@@ -105,7 +105,7 @@ def load_recent_speeches(
         log.info("Loading BIS speeches for %s.", year)
         try:
             raw = _load_speeches_year(year, timeout=timeout)
-        except (HTTPError, URLError, RuntimeError, zipfile.BadZipFile, ValueError) as error:
+        except (URLError, RuntimeError, zipfile.BadZipFile, ValueError) as error:
             log.warning("Could not load BIS speeches for %s: %s", year, error)
             continue
 
@@ -328,15 +328,7 @@ def _load_speeches_year(year: int, timeout: int) -> pd.DataFrame:
         GINGADO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         gingado_datasets.CACHE_DIRECTORY = str(GINGADO_CACHE_DIR)
         return gingado_datasets.load_CB_speeches(year=year, cache=True, timeout=timeout)
-    except (
-        ImportError,
-        OSError,
-        AttributeError,
-        RuntimeError,
-        ValueError,
-        HTTPError,
-        URLError,
-    ) as error:
+    except (ImportError, OSError, AttributeError, RuntimeError, ValueError) as error:
         log.warning(
             "gingado could not load BIS speeches for %s (%s); trying direct BIS ZIP.",
             year,

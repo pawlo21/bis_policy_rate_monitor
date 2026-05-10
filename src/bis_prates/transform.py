@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import zipfile
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -105,6 +106,16 @@ class TransformResult:
     missing_observation_rows: int
 
 
+@dataclass(frozen=True)
+class _ChunkOutcome:
+    """Per-chunk products and counters yielded by `_iter_processed_chunks`."""
+
+    output: pd.DataFrame
+    missing: pd.DataFrame
+    rows_read: int
+    duplicates: int
+
+
 class PolicyRateTransformer:
     """Parse the cached BIS ZIP and write a tidy policy-rate Parquet dataset."""
 
@@ -151,68 +162,35 @@ class PolicyRateTransformer:
         rows_written = 0
         duplicates_dropped = 0
         missing_observation_rows = 0
-        wrote_header = False
-        wrote_missing_header = False
+        missing_csv_initialized = False
         parquet_writer: pq.ParquetWriter | None = None
 
         try:
-            with zipfile.ZipFile(archive_path) as archive:
-                if self.raw_csv_name not in archive.namelist():
-                    raise FileNotFoundError(
-                        f"{self.raw_csv_name} not found in archive: {archive_path}"
+            with self._open_chunk_reader(archive_path) as reader:
+                for outcome in self._iter_processed_chunks(reader, seen_rows):
+                    rows_read += outcome.rows_read
+                    duplicates_dropped += outcome.duplicates
+                    rows_written += len(outcome.output)
+                    missing_observation_rows += len(outcome.missing)
+
+                    parquet_writer = _write_parquet_chunk(
+                        output_chunk=outcome.output,
+                        output_path=self.output_path,
+                        parquet_writer=parquet_writer,
                     )
-
-                with archive.open(self.raw_csv_name) as raw_file:
-                    reader = pd.read_csv(
-                        raw_file,
-                        dtype=str,
-                        keep_default_na=False,
-                        chunksize=self.chunksize,
-                        encoding="utf-8-sig",
+                    missing_csv_initialized = _append_csv(
+                        outcome.missing,
+                        self.missing_observations_path,
+                        header_written=missing_csv_initialized,
                     )
-
-                    for raw_chunk in reader:
-                        _validate_columns(raw_chunk.columns)
-                        rows_read += len(raw_chunk)
-                        tidy_chunk = tidy_policy_rate_frame(raw_chunk)
-                        keep_mask, chunk_duplicates = _dedupe_chunk(tidy_chunk, seen_rows)
-                        output_chunk = tidy_chunk.loc[keep_mask, TIDY_COLUMNS]
-                        missing_chunk = find_missing_observations(output_chunk)
-
-                        parquet_writer = _write_parquet_chunk(
-                            output_chunk=output_chunk,
-                            output_path=self.output_path,
-                            parquet_writer=parquet_writer,
-                        )
-
-                        wrote_header = True
-                        rows_written += len(output_chunk)
-                        duplicates_dropped += chunk_duplicates
-                        missing_observation_rows += len(missing_chunk)
-
-                        if not missing_chunk.empty:
-                            missing_chunk.to_csv(
-                                self.missing_observations_path,
-                                mode="w" if not wrote_missing_header else "a",
-                                header=not wrote_missing_header,
-                                index=False,
-                            )
-                            wrote_missing_header = True
         finally:
             if parquet_writer is not None:
                 parquet_writer.close()
 
-        if not wrote_header:
-            empty_table = pa.Table.from_pandas(
-                pd.DataFrame(columns=TIDY_COLUMNS),
-                preserve_index=False,
-            )
-            pq.write_table(empty_table, self.output_path)
-
-        if not wrote_missing_header:
-            pd.DataFrame(columns=MISSING_OBSERVATION_COLUMNS).to_csv(
-                self.missing_observations_path, index=False
-            )
+        if parquet_writer is None:
+            _write_empty_parquet(self.output_path)
+        if not missing_csv_initialized:
+            _write_empty_csv(self.missing_observations_path, MISSING_OBSERVATION_COLUMNS)
 
         self._write_manifest(
             archive_path=archive_path,
@@ -231,6 +209,40 @@ class PolicyRateTransformer:
             duplicates_dropped=duplicates_dropped,
             missing_observation_rows=missing_observation_rows,
         )
+
+    @contextlib.contextmanager
+    def _open_chunk_reader(self, archive_path: Path) -> Iterator[Iterator[pd.DataFrame]]:
+        """Open the raw BIS CSV inside `archive_path` and yield a chunked reader."""
+        with zipfile.ZipFile(archive_path) as archive:
+            if self.raw_csv_name not in archive.namelist():
+                raise FileNotFoundError(f"{self.raw_csv_name} not found in archive: {archive_path}")
+            with archive.open(self.raw_csv_name) as raw_file:
+                yield pd.read_csv(
+                    raw_file,
+                    dtype=str,
+                    keep_default_na=False,
+                    chunksize=self.chunksize,
+                    encoding="utf-8-sig",
+                )
+
+    def _iter_processed_chunks(
+        self,
+        reader: Iterator[pd.DataFrame],
+        seen_rows: dict[tuple[str, str, str], tuple[str, ...]],
+    ) -> Iterator[_ChunkOutcome]:
+        """Validate, tidy, and dedupe each raw chunk; yield the per-chunk outcome."""
+        for raw_chunk in reader:
+            _validate_columns(raw_chunk.columns)
+            tidy_chunk = tidy_policy_rate_frame(raw_chunk)
+            keep_mask, chunk_duplicates = _dedupe_chunk(tidy_chunk, seen_rows)
+            output_chunk = tidy_chunk.loc[keep_mask, TIDY_COLUMNS]
+            missing_chunk = find_missing_observations(output_chunk)
+            yield _ChunkOutcome(
+                output=output_chunk,
+                missing=missing_chunk,
+                rows_read=len(raw_chunk),
+                duplicates=chunk_duplicates,
+            )
 
     def _resolve_archive_path(self) -> Path:
         if self.archive_path is not None:
@@ -353,6 +365,37 @@ def _write_parquet_chunk(
     return parquet_writer
 
 
+def _append_csv(frame: pd.DataFrame, path: Path, header_written: bool) -> bool:
+    """Append `frame` to `path`, writing the header on the first call.
+
+    Returns the new `header_written` state. No-op (and pass-through) for empty frames.
+    """
+    if frame.empty:
+        return header_written
+
+    frame.to_csv(
+        path,
+        mode="a" if header_written else "w",
+        header=not header_written,
+        index=False,
+    )
+    return True
+
+
+def _write_empty_parquet(path: Path) -> None:
+    """Write a parquet file with the tidy schema and zero rows."""
+    empty_table = pa.Table.from_pandas(
+        pd.DataFrame(columns=TIDY_COLUMNS),
+        preserve_index=False,
+    )
+    pq.write_table(empty_table, path)
+
+
+def _write_empty_csv(path: Path, columns: list[str]) -> None:
+    """Write a header-only CSV with the given columns."""
+    pd.DataFrame(columns=columns).to_csv(path, index=False)
+
+
 def split_code_label(value: str) -> tuple[str, str]:
     """Split an SDMX `code: label` string into `(code, label)` parts."""
     value = clean_text(value)
@@ -453,8 +496,8 @@ def _validate_columns(fieldnames: Iterable[str] | None) -> None:
 def _dedupe_chunk(
     tidy_chunk: pd.DataFrame,
     seen_rows: dict[tuple[str, str, str], tuple[str, ...]],
-) -> tuple[list[bool], int]:
-    keep_mask = []
+) -> tuple[pd.Series, int]:
+    keep_mask_values: list[bool] = []
     duplicates_dropped = 0
 
     dedupe_keys = tidy_chunk[["freq_code", "ref_area_code", "time_period"]].itertuples(
@@ -469,10 +512,10 @@ def _dedupe_chunk(
                 raise ValueError(f"Conflicting duplicate observation for {dedupe_key}")
 
             duplicates_dropped += 1
-            keep_mask.append(False)
+            keep_mask_values.append(False)
             continue
 
         seen_rows[dedupe_key] = row_fingerprint
-        keep_mask.append(True)
+        keep_mask_values.append(True)
 
-    return keep_mask, duplicates_dropped
+    return pd.Series(keep_mask_values, index=tidy_chunk.index, dtype=bool), duplicates_dropped

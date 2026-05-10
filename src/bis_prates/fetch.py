@@ -59,6 +59,112 @@ class FetchResult:
     metadata: RemoteMetadata
 
 
+class _FetchCache:
+    """Owns the on-disk cache of a fetched archive plus its manifest.
+
+    Keeps cache-state concerns (where the archive lives, whether it is still
+    fresh, how the manifest is serialised) separate from the HTTP I/O that
+    `BisBulkFetcher` performs.
+    """
+
+    def __init__(self, cache_dir: Path) -> None:
+        """Bind the cache to `cache_dir`; the manifest path is derived from it."""
+        self.cache_dir = Path(cache_dir)
+        self.manifest_path = self.cache_dir / MANIFEST_FILENAME
+
+    def archive_path_for(self, dataset: DiscoveredDataset) -> Path:
+        """Return where the dataset's archive lives (or would live) on disk."""
+        return self.cache_dir / _filename_from_url(dataset.url)
+
+    def load_manifest(self) -> dict[str, object]:
+        """Read the JSON manifest, returning `{}` when none exists yet."""
+        if not self.manifest_path.exists():
+            return {}
+        with self.manifest_path.open("r", encoding="utf-8") as manifest_file:
+            return json.load(manifest_file)
+
+    def is_current(
+        self,
+        archive_path: Path,
+        dataset: DiscoveredDataset,
+        metadata: RemoteMetadata,
+    ) -> bool:
+        """Return True if the cached archive can be reused for `dataset`.
+
+        Two-step check: first the invariants that must hold for any cache hit
+        (file exists, URL / release-date / size match what we just discovered),
+        then a validator agreement check that picks one of release_date /
+        ETag / Last-Modified as the source of truth.
+        """
+        manifest = self.load_manifest()
+        if not self._invariants_match(archive_path, manifest, dataset, metadata):
+            return False
+        return self._validator_agrees(manifest, dataset, metadata)
+
+    @staticmethod
+    def _invariants_match(
+        archive_path: Path,
+        manifest: dict[str, object],
+        dataset: DiscoveredDataset,
+        metadata: RemoteMetadata,
+    ) -> bool:
+        if not archive_path.exists() or not manifest:
+            return False
+        if manifest.get("url") != dataset.url:
+            return False
+        if dataset.release_date and manifest.get("release_date") != dataset.release_date:
+            return False
+        return metadata.content_length is None or _content_length_matches(manifest, metadata)
+
+    @staticmethod
+    def _validator_agrees(
+        manifest: dict[str, object],
+        dataset: DiscoveredDataset,
+        metadata: RemoteMetadata,
+    ) -> bool:
+        if dataset.release_date:
+            return True
+        if metadata.etag and manifest.get("etag"):
+            return manifest.get("etag") == metadata.etag
+        if metadata.last_modified and manifest.get("last_modified"):
+            same_last_modified = manifest.get("last_modified") == metadata.last_modified
+            return same_last_modified and _content_length_matches(manifest, metadata)
+        return False
+
+    def write_manifest(
+        self,
+        *,
+        archive_path: Path,
+        dataset: DiscoveredDataset,
+        metadata: RemoteMetadata,
+        sha256_hash: str,
+        size_bytes: int,
+        source_page: str,
+    ) -> None:
+        """Persist the cache manifest with discovery and integrity metadata."""
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "dataset": dataset.label,
+            "source_page": source_page,
+            "url": dataset.url,
+            "release_date": dataset.release_date,
+            "archive_path": str(archive_path),
+            "downloaded_at_utc": datetime.now(UTC)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "etag": metadata.etag,
+            "last_modified": metadata.last_modified,
+            "content_length": metadata.content_length,
+            "size_bytes": size_bytes,
+            "sha256": sha256_hash,
+        }
+
+        with self.manifest_path.open("w", encoding="utf-8") as manifest_file:
+            json.dump(manifest, manifest_file, indent=2, sort_keys=True)
+            manifest_file.write("\n")
+
+
 class BisBulkFetcher:
     """Fetch and cache the BIS central bank policy rates CSV flat ZIP."""
 
@@ -82,7 +188,12 @@ class BisBulkFetcher:
         self.bulk_download_url = bulk_download_url
         self.dataset_label = dataset_label
         self.timeout_seconds = timeout_seconds
-        self.manifest_path = self.cache_dir / MANIFEST_FILENAME
+        self._cache = _FetchCache(self.cache_dir)
+
+    @property
+    def manifest_path(self) -> Path:
+        """Path to the on-disk cache manifest (delegates to the cache)."""
+        return self._cache.manifest_path
 
     def fetch(self) -> FetchResult:
         """Discover, conditionally download, and cache the BIS archive.
@@ -92,14 +203,13 @@ class BisBulkFetcher:
         """
         dataset = self.discover_dataset()
         metadata = self.get_remote_metadata(dataset.url)
-        archive_path = self.cache_dir / _filename_from_url(dataset.url)
-        manifest = self._load_manifest()
+        archive_path = self._cache.archive_path_for(dataset)
 
-        if self._is_cached_current(archive_path, manifest, dataset, metadata):
+        if self._cache.is_current(archive_path, dataset, metadata):
             return FetchResult(
                 downloaded=False,
                 archive_path=archive_path,
-                manifest_path=self.manifest_path,
+                manifest_path=self._cache.manifest_path,
                 dataset=dataset,
                 metadata=metadata,
             )
@@ -108,18 +218,19 @@ class BisBulkFetcher:
             dataset.url, archive_path
         )
         final_metadata = _prefer_download_metadata(download_metadata, metadata)
-        self._write_manifest(
+        self._cache.write_manifest(
             archive_path=archive_path,
             dataset=dataset,
             metadata=final_metadata,
             sha256_hash=sha256_hash,
             size_bytes=size_bytes,
+            source_page=self.bulk_download_url,
         )
 
         return FetchResult(
             downloaded=True,
             archive_path=archive_path,
-            manifest_path=self.manifest_path,
+            manifest_path=self._cache.manifest_path,
             dataset=dataset,
             metadata=final_metadata,
         )
@@ -204,89 +315,6 @@ class BisBulkFetcher:
 
         os.replace(temp_path, archive_path)
         return metadata, sha256.hexdigest(), size_bytes
-
-    def _load_manifest(self) -> dict[str, object]:
-        if not self.manifest_path.exists():
-            return {}
-
-        with self.manifest_path.open("r", encoding="utf-8") as manifest_file:
-            return json.load(manifest_file)
-
-    def _write_manifest(
-        self,
-        archive_path: Path,
-        *,
-        dataset: DiscoveredDataset,
-        metadata: RemoteMetadata,
-        sha256_hash: str,
-        size_bytes: int,
-    ) -> None:
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        manifest = {
-            "dataset": dataset.label,
-            "source_page": self.bulk_download_url,
-            "url": dataset.url,
-            "release_date": dataset.release_date,
-            "archive_path": str(archive_path),
-            "downloaded_at_utc": datetime.now(UTC)
-            .replace(microsecond=0)
-            .isoformat()
-            .replace("+00:00", "Z"),
-            "etag": metadata.etag,
-            "last_modified": metadata.last_modified,
-            "content_length": metadata.content_length,
-            "size_bytes": size_bytes,
-            "sha256": sha256_hash,
-        }
-
-        with self.manifest_path.open("w", encoding="utf-8") as manifest_file:
-            json.dump(manifest, manifest_file, indent=2, sort_keys=True)
-            manifest_file.write("\n")
-
-    def _is_cached_current(
-        self,
-        archive_path: Path,
-        manifest: dict[str, object],
-        dataset: DiscoveredDataset,
-        metadata: RemoteMetadata,
-    ) -> bool:
-        # Two-step check: first the invariants that must hold for any cache hit
-        # (file exists, URL/release-date/size match what we just discovered),
-        # then a validator agreement check that picks one of release_date /
-        # ETag / Last-Modified as the source of truth.
-        if not self._cache_invariants_match(archive_path, manifest, dataset, metadata):
-            return False
-        return self._cache_validator_agrees(manifest, dataset, metadata)
-
-    @staticmethod
-    def _cache_invariants_match(
-        archive_path: Path,
-        manifest: dict[str, object],
-        dataset: DiscoveredDataset,
-        metadata: RemoteMetadata,
-    ) -> bool:
-        if not archive_path.exists() or not manifest:
-            return False
-        if manifest.get("url") != dataset.url:
-            return False
-        if dataset.release_date and manifest.get("release_date") != dataset.release_date:
-            return False
-        return metadata.content_length is None or _content_length_matches(manifest, metadata)
-
-    @staticmethod
-    def _cache_validator_agrees(
-        manifest: dict[str, object],
-        dataset: DiscoveredDataset,
-        metadata: RemoteMetadata,
-    ) -> bool:
-        if dataset.release_date:
-            return True
-        if metadata.etag and manifest.get("etag"):
-            return manifest.get("etag") == metadata.etag
-        if metadata.last_modified and manifest.get("last_modified"):
-            same_last_modified = manifest.get("last_modified") == metadata.last_modified
-            return same_last_modified and _content_length_matches(manifest, metadata)
-        return False
 
 
 class _BulkDownloadParser(HTMLParser):
