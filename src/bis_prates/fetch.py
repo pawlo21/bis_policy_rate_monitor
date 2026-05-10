@@ -129,7 +129,7 @@ class BisBulkFetcher:
             method="HEAD",
         )
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
+            with urlopen(request, timeout=self.timeout_seconds) as response:  # nosec B310 - hardcoded https BIS endpoint
                 return RemoteMetadata.from_headers(response.headers)
         except HTTPError as error:
             if error.code not in {403, 405}:
@@ -142,7 +142,7 @@ class BisBulkFetcher:
     def _http_get_text(self, url: str) -> str:
         request = Request(url, headers={"User-Agent": USER_AGENT})
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
+            with urlopen(request, timeout=self.timeout_seconds) as response:  # nosec B310 - hardcoded https BIS endpoint
                 charset = response.headers.get_content_charset() or "utf-8"
                 return response.read().decode(charset)
         except URLError as error:
@@ -156,7 +156,7 @@ class BisBulkFetcher:
 
         request = Request(url, headers={"User-Agent": USER_AGENT})
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
+            with urlopen(request, timeout=self.timeout_seconds) as response:  # nosec B310 - hardcoded https BIS endpoint
                 metadata = RemoteMetadata.from_headers(response.headers)
                 with temp_path.open("wb") as output_file:
                     while True:

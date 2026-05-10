@@ -11,17 +11,19 @@ from __future__ import annotations
 import io
 import logging
 import re
+import sys
 import zipfile
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import pandas as pd
+
 
 log = logging.getLogger(__name__)
 
@@ -69,8 +71,8 @@ class SpeechesAnalysis:
 def build_speeches_analysis(
     policy_rate_data: pd.DataFrame,
     chart_path: Path,
-    today: datetime | None = None,
-) -> SpeechesAnalysis | None:
+    today: Optional[datetime] = None,
+) -> Optional[SpeechesAnalysis]:
     """Build the speeches extension output, returning None when no data loads."""
     speeches = load_recent_speeches(today=today)
     if speeches.empty:
@@ -95,7 +97,7 @@ def build_speeches_analysis(
 
 
 def load_recent_speeches(
-    today: datetime | None = None,
+    today: Optional[datetime] = None,
     lookback_years: int = LOOKBACK_YEARS,
     timeout: int = HTTP_TIMEOUT_SECONDS,
 ) -> pd.DataFrame:
@@ -109,7 +111,7 @@ def load_recent_speeches(
     cutoff = today_ts - pd.DateOffset(years=lookback_years)
     years = list(range(cutoff.year, today_ts.year + 1))
 
-    frames: list[pd.DataFrame] = []
+    frames: List[pd.DataFrame] = []
     for year in years:
         log.info("Loading BIS speeches for %s.", year)
         try:
@@ -126,7 +128,9 @@ def load_recent_speeches(
         return _empty_speeches_frame()
 
     speeches = pd.concat(frames, ignore_index=True)
-    speeches = speeches[speeches["date"].between(cutoff, today_ts, inclusive="both")].copy()
+    speeches = speeches[
+        speeches["date"].between(cutoff, today_ts, inclusive="both")
+    ].copy()
     speeches = speeches.sort_values("date").reset_index(drop=True)
     log.info("Loaded %d BIS speeches since %s.", len(speeches), cutoff.date())
     return speeches
@@ -191,7 +195,7 @@ def compute_term_frequencies(
 
 def compute_monthly_policy_moves(
     policy_rate_data: pd.DataFrame,
-    start: pd.Timestamp | None = None,
+    start: Optional[pd.Timestamp] = None,
 ) -> pd.DataFrame:
     """Compute signed monthly policy-rate moves by country in basis points.
 
@@ -328,6 +332,14 @@ def render_speeches_chart(
 
 
 def _load_speeches_year(year: int, timeout: int) -> pd.DataFrame:
+    if sys.version_info[:2] < (3, 10):
+        log.info(
+            "Python %s.%s cannot import the installed gingado release; "
+            "using direct BIS ZIP download.",
+            sys.version_info[0],
+            sys.version_info[1],
+        )
+        return _download_speeches_year(year, timeout=timeout)
 
     try:
         from gingado import datasets as gingado_datasets
@@ -347,7 +359,7 @@ def _load_speeches_year(year: int, timeout: int) -> pd.DataFrame:
 def _download_speeches_year(year: int, timeout: int) -> pd.DataFrame:
     url = f"{BIS_SPEECHES_BASE_URL}speeches_{year}.zip"
     request = Request(url, headers={"User-Agent": USER_AGENT})
-    with urlopen(request, timeout=timeout) as response:
+    with urlopen(request, timeout=timeout) as response:  # nosec B310 - hardcoded https BIS endpoint
         payload = response.read(MAX_ZIP_BYTES + 1)
     if len(payload) > MAX_ZIP_BYTES:
         raise RuntimeError(f"BIS speeches ZIP for {year} exceeds the size limit.")
@@ -357,8 +369,33 @@ def _download_speeches_year(year: int, timeout: int) -> pd.DataFrame:
         csv_info = archive.getinfo(csv_name)
         if csv_info.file_size > MAX_CSV_BYTES:
             raise RuntimeError(f"BIS speeches CSV for {year} exceeds the size limit.")
-        with archive.open(csv_name) as csv_file:
-            return pd.read_csv(csv_file)
+        return _read_speeches_csv(archive, csv_name, year)
+
+
+def _read_speeches_csv(
+    archive: zipfile.ZipFile, csv_name: str, year: int
+) -> pd.DataFrame:
+    # BIS speech CSVs are usually UTF-8 but occasional translated content has
+    # arrived as Latin-1. Re-open for the fallback because pandas may have
+    # consumed part of the stream before the decode error surfaced.
+    for encoding in ("utf-8", "latin-1"):
+        try:
+            with archive.open(csv_name) as csv_file:
+                return pd.read_csv(csv_file, encoding=encoding)
+        except UnicodeDecodeError as error:
+            log.warning(
+                "Decoding BIS speeches CSV for %s as %s failed: %s",
+                year,
+                encoding,
+                error,
+            )
+    raise UnicodeDecodeError(
+        "utf-8",
+        b"",
+        0,
+        0,
+        f"Could not decode BIS speeches CSV for {year} as UTF-8 or Latin-1.",
+    )
 
 
 def _select_speeches_csv(archive: zipfile.ZipFile, year: int) -> str:
@@ -373,7 +410,7 @@ def _select_speeches_csv(archive: zipfile.ZipFile, year: int) -> str:
     return max(csv_names, key=lambda name: archive.getinfo(name).file_size)
 
 
-def _find_column(frame: pd.DataFrame, candidates: Iterable[str]) -> str | None:
+def _find_column(frame: pd.DataFrame, candidates: Iterable[str]) -> Optional[str]:
     by_lower = {str(column).strip().lower(): column for column in frame.columns}
     for candidate in candidates:
         if candidate.lower() in by_lower:
@@ -381,8 +418,8 @@ def _find_column(frame: pd.DataFrame, candidates: Iterable[str]) -> str | None:
     return None
 
 
-def _normalise_today(today: datetime | None) -> pd.Timestamp:
-    value = today if today is not None else datetime.now(UTC)
+def _normalise_today(today: Optional[datetime]) -> pd.Timestamp:
+    value = today if today is not None else datetime.now(timezone.utc)
     timestamp = pd.Timestamp(value)
     if timestamp.tzinfo is not None:
         timestamp = timestamp.tz_convert(None)
