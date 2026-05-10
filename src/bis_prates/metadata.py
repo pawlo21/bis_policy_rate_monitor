@@ -95,11 +95,11 @@ def fetch_reference_area_codes(
             codes = _fetch_reference_area_codes_live(archive_path, timeout, cache_path)
             return codes
         except (
-            OSError,                # file/network/timeout (TimeoutError, URLError extend OSError)
-            ValueError,             # parsing failures, JSONDecodeError extends ValueError
-            KeyError,               # missing fields in SDMX JSON responses
-            RuntimeError,           # pysdmx-wrapped errors and other library failures
-            zipfile.BadZipFile,     # corrupt downloaded archive
+            OSError,  # file/network/timeout (TimeoutError, URLError extend OSError)
+            ValueError,  # parsing failures, JSONDecodeError extends ValueError
+            KeyError,  # missing fields in SDMX JSON responses
+            RuntimeError,  # pysdmx-wrapped errors and other library failures
+            zipfile.BadZipFile,  # corrupt downloaded archive
         ) as error:
             last_error = error
             log.warning(
