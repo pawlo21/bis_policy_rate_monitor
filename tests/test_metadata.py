@@ -71,6 +71,7 @@ class MetadataTest(unittest.TestCase):
                     retry_delay_seconds=0,
                 )
 
+        assert codes is not None
         self.assertEqual(codes["US"], "United States")
         self.assertEqual(codes["XM"], "Euro area")
         self.assertEqual(discover.call_count, 2)

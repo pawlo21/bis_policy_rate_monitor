@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import tempfile
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -535,7 +535,7 @@ def _utc_now() -> str:
 
 
 @contextlib.contextmanager
-def _suppress_stderr_fd() -> Iterable[None]:
+def _suppress_stderr_fd() -> Iterator[None]:
     stderr_fd = 2
     saved_stderr_fd = os.dup(stderr_fd)
     devnull_fd = os.open(os.devnull, os.O_WRONLY)
