@@ -61,6 +61,7 @@ select = [
 ignore = [
     "E501",  # line length is enforced by the formatter, not the linter
     "S101",  # asserts are fine in this codebase
+    "S310",  # urlopen on hardcoded https BIS URLs — bandit tracks via `# nosec B310`
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -94,3 +95,6 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
 ]
+
+[tool.bandit]
+exclude_dirs = ["tests", "data", "out", ".venv"]

@@ -8,28 +8,38 @@ import html
 import json
 import logging
 import os
+import tempfile
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/bis_prates_matplotlib")
+# MPLCONFIGDIR and ARROW_USER_SIMD_LEVEL must be set before matplotlib/pyarrow
+# are imported, so the imports below intentionally appear after the env setup.
+# E402 (module-level imports not at top) is therefore suppressed for them.
+# `tempfile.gettempdir()` resolves to the platform-appropriate temp dir
+# (`/tmp` on Linux, `/var/folders/...` on macOS) so CI runners on either
+# platform can create the matplotlib cache without permission errors.
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    str(Path(tempfile.gettempdir()) / "bis_prates_matplotlib"),
+)
 os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
 Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
 
-import matplotlib
+import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt
-import pandas as pd
+import matplotlib.pyplot as plt  # noqa: E402
+import pandas as pd  # noqa: E402
 
-from bis_prates.metadata import (
+from bis_prates.metadata import (  # noqa: E402
     COUNTRY_ALIASES,
     fetch_reference_area_codes,
     validate_country_codes,
 )
-from bis_prates.speeches import (
+from bis_prates.speeches import (  # noqa: E402
     SpeechesAnalysis,
     term_frequency_summary,
 )
