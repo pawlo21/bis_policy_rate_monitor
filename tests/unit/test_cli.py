@@ -39,6 +39,22 @@ class CliTest(unittest.TestCase):
 
         self.assertTrue(args.speeches)
 
+    def test_report_assess_sentiment_flag_accepts_true(self) -> None:
+        """`--assess-sentiment` enables transformer speech assessment."""
+        args = build_parser().parse_args(
+            [
+                "report",
+                "--countries",
+                "US,EA",
+                "--start",
+                "2015-01-01",
+                "--speeches=true",
+                "--assess-sentiment",
+            ]
+        )
+
+        self.assertTrue(args.assess_sentiment)
+
 
 if __name__ == "__main__":
     unittest.main()

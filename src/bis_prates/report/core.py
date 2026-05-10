@@ -29,6 +29,7 @@ SUMMARY_CSV_NAME = "summary.csv"
 SUMMARY_JSON_NAME = "summary.json"
 CHART_NAME = "policy_rates.png"
 SPEECHES_CHART_NAME = "speeches_terms.png"
+SPEECH_SENTIMENT_CHART_NAME = "speeches_sentiment.png"
 REPORT_HTML_NAME = "report.html"
 PREFERRED_FREQUENCY = "D"
 
@@ -44,6 +45,7 @@ class ReportResult:
     countries: list[str]
     rows_written: int
     speeches_chart_path: Path | None = None
+    speech_sentiment_chart_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,7 @@ class _OutputPaths:
     summary_json: Path
     chart: Path
     speeches_chart: Path
+    speech_sentiment_chart: Path
     report_html: Path
 
     @classmethod
@@ -69,6 +72,7 @@ class _OutputPaths:
             summary_json=output_dir / SUMMARY_JSON_NAME,
             chart=output_dir / CHART_NAME,
             speeches_chart=output_dir / SPEECHES_CHART_NAME,
+            speech_sentiment_chart=output_dir / SPEECH_SENTIMENT_CHART_NAME,
             report_html=output_dir / REPORT_HTML_NAME,
         )
 
@@ -155,6 +159,14 @@ class PolicyRateReporter:
             speeches_chart_path=(
                 speeches_analysis.chart_path if speeches_analysis is not None else None
             ),
+            speech_sentiment_chart_path=(
+                speeches_analysis.sentiment_analysis.chart_path
+                if (
+                    speeches_analysis is not None
+                    and speeches_analysis.sentiment_analysis is not None
+                )
+                else None
+            ),
         )
 
     def _build_speeches_analysis(
@@ -163,6 +175,7 @@ class PolicyRateReporter:
     ) -> SpeechesAnalysis | None:
         if self.speeches_provider is None:
             self.paths.speeches_chart.unlink(missing_ok=True)
+            self.paths.speech_sentiment_chart.unlink(missing_ok=True)
             return None
 
         try:
@@ -173,10 +186,14 @@ class PolicyRateReporter:
         except Exception as error:  # pylint: disable=broad-exception-caught
             log.warning("Skipping speeches extension: %s", error)
             self.paths.speeches_chart.unlink(missing_ok=True)
+            self.paths.speech_sentiment_chart.unlink(missing_ok=True)
             return None
 
         if speeches_analysis is None:
             self.paths.speeches_chart.unlink(missing_ok=True)
+            self.paths.speech_sentiment_chart.unlink(missing_ok=True)
+        elif speeches_analysis.sentiment_analysis is None:
+            self.paths.speech_sentiment_chart.unlink(missing_ok=True)
         return speeches_analysis
 
 

@@ -37,11 +37,20 @@ def write_summary_json(
         "rows": json_records(summary),
     }
     if speeches_analysis is not None:
-        payload["speeches_extension"] = {
+        speeches_payload = {
             "chart_path": str(speeches_analysis.chart_path),
             "term_frequencies": json_records(speeches_analysis.term_frequencies),
             "policy_moves": json_records(speeches_analysis.policy_moves),
         }
+        if speeches_analysis.sentiment_analysis is not None:
+            sentiment = speeches_analysis.sentiment_analysis
+            speeches_payload["sentiment_assessment"] = {
+                "model_name": sentiment.model_name,
+                "chart_path": str(sentiment.chart_path),
+                "speech_scores": json_records(sentiment.speech_scores),
+                "monthly_scores": json_records(sentiment.monthly_scores),
+            }
+        payload["speeches_extension"] = speeches_payload
 
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 

@@ -9,6 +9,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -e .
+# Optional, only needed for transformer speech assessment:
+python -m pip install -e ".[transformer]"
 ```
 
 ## CLI
@@ -18,6 +20,7 @@ bis-prates fetch
 bis-prates transform
 bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
 bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true
+bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true --assess-sentiment
 ```
 
 `bis-prates fetch` stores the raw ZIP in `data/raw/` and records cache metadata
@@ -57,3 +60,10 @@ Python runtime, it falls back to the same yearly BIS speech ZIP files. The
 extension counts fixed terms (`inflation`, `rate`, `tightening`) and compares
 monthly term counts with signed monthly policy-rate moves by country in
 `out/speeches_terms.png` and `out/report.html`.
+
+When `--assess-sentiment` is added, the speeches section also classifies
+policy-relevant sentences with `brjoey/CBSI-CentralBank-BERT`. It scores each
+speech with `(hawkish sentences - dovish sentences) / classified sentences`,
+then averages speech-level scores by month so long speeches do not dominate.
+The extra output is written to `out/speeches_sentiment.png`, `out/summary.json`,
+and `out/report.html`.
