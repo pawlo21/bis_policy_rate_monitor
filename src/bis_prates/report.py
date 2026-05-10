@@ -8,6 +8,7 @@ import html
 import json
 import logging
 import os
+import tempfile
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -16,7 +17,13 @@ from pathlib import Path
 # MPLCONFIGDIR and ARROW_USER_SIMD_LEVEL must be set before matplotlib/pyarrow
 # are imported, so the imports below intentionally appear after the env setup.
 # E402 (module-level imports not at top) is therefore suppressed for them.
-os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/bis_prates_matplotlib")
+# `tempfile.gettempdir()` resolves to the platform-appropriate temp dir
+# (`/tmp` on Linux, `/var/folders/...` on macOS) so CI runners on either
+# platform can create the matplotlib cache without permission errors.
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    str(Path(tempfile.gettempdir()) / "bis_prates_matplotlib"),
+)
 os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
 Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
 
