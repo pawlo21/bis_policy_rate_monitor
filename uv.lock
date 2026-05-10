@@ -135,11 +135,11 @@ dev = [
 requires-dist = [
     { name = "gingado", specifier = ">=0.2.7,<0.3" },
     { name = "matplotlib", specifier = ">=3.7,<4" },
-    { name = "pandas", specifier = ">=2.0,<3" },
-    { name = "pyarrow", specifier = ">=15,<23" },
+    { name = "pandas", specifier = ">=2.0,<4" },
+    { name = "pyarrow", specifier = ">=15,<25" },
     { name = "pysdmx", specifier = ">=1.14,<2" },
     { name = "torch", marker = "extra == 'transformer'", specifier = ">=2.1,<3" },
-    { name = "transformers", marker = "extra == 'transformer'", specifier = ">=4.40,<5" },
+    { name = "transformers", marker = "extra == 'transformer'", specifier = ">=4.40,<6" },
 ]
 provides-extras = ["transformer"]
 
