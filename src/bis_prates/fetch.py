@@ -6,14 +6,12 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Dict, List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
-
 
 BULK_DOWNLOAD_URL = "https://data.bis.org/bulkdownload"
 DATASET_LABEL = "Central bank policy rates (CSV, flat)"
@@ -26,17 +24,17 @@ USER_AGENT = "bis-policy-rate-monitor/0.1"
 class DiscoveredDataset:
     label: str
     url: str
-    release_date: Optional[str]
+    release_date: str | None
 
 
 @dataclass(frozen=True)
 class RemoteMetadata:
-    etag: Optional[str]
-    last_modified: Optional[str]
-    content_length: Optional[int]
+    etag: str | None
+    last_modified: str | None
+    content_length: int | None
 
     @classmethod
-    def from_headers(cls, headers: object) -> "RemoteMetadata":
+    def from_headers(cls, headers: object) -> RemoteMetadata:
         content_length = _parse_int(_header_value(headers, "Content-Length"))
         return cls(
             etag=_header_value(headers, "ETag"),
@@ -150,9 +148,7 @@ class BisBulkFetcher:
         except URLError as error:
             raise RuntimeError(f"Could not read BIS bulk download page: {url}") from error
 
-    def _download_archive(
-        self, url: str, archive_path: Path
-    ) -> tuple[RemoteMetadata, str, int]:
+    def _download_archive(self, url: str, archive_path: Path) -> tuple[RemoteMetadata, str, int]:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         temp_path = archive_path.with_suffix(f"{archive_path.suffix}.tmp")
         sha256 = hashlib.sha256()
@@ -176,7 +172,7 @@ class BisBulkFetcher:
         os.replace(temp_path, archive_path)
         return metadata, sha256.hexdigest(), size_bytes
 
-    def _load_manifest(self) -> Dict[str, object]:
+    def _load_manifest(self) -> dict[str, object]:
         if not self.manifest_path.exists():
             return {}
 
@@ -198,7 +194,7 @@ class BisBulkFetcher:
             "url": dataset.url,
             "release_date": dataset.release_date,
             "archive_path": str(archive_path),
-            "downloaded_at_utc": datetime.now(timezone.utc)
+            "downloaded_at_utc": datetime.now(UTC)
             .replace(microsecond=0)
             .isoformat()
             .replace("+00:00", "Z"),
@@ -216,7 +212,7 @@ class BisBulkFetcher:
     def _is_cached_current(
         self,
         archive_path: Path,
-        manifest: Dict[str, object],
+        manifest: dict[str, object],
         dataset: DiscoveredDataset,
         metadata: RemoteMetadata,
     ) -> bool:
@@ -229,9 +225,7 @@ class BisBulkFetcher:
         if dataset.release_date and manifest.get("release_date") != dataset.release_date:
             return False
 
-        if metadata.content_length is not None and not _content_length_matches(
-            manifest, metadata
-        ):
+        if metadata.content_length is not None and not _content_length_matches(manifest, metadata):
             return False
 
         if dataset.release_date:
@@ -252,11 +246,11 @@ class _BulkDownloadParser(HTMLParser):
     def __init__(self, base_url: str) -> None:
         super().__init__()
         self.base_url = base_url
-        self.anchors: List[Dict[str, str]] = []
-        self._current_href: Optional[str] = None
-        self._current_text: List[str] = []
+        self.anchors: list[dict[str, str]] = []
+        self._current_href: str | None = None
+        self._current_text: list[str] = []
 
-    def handle_starttag(self, tag: str, attrs: List[tuple[str, Optional[str]]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag != "a":
             return
 
@@ -293,9 +287,7 @@ def _filename_from_url(url: str) -> str:
     return filename
 
 
-def _content_length_matches(
-    manifest: Dict[str, object], metadata: RemoteMetadata
-) -> bool:
+def _content_length_matches(manifest: dict[str, object], metadata: RemoteMetadata) -> bool:
     if metadata.content_length is None:
         return True
 
@@ -303,7 +295,7 @@ def _content_length_matches(
     return manifest_length == metadata.content_length
 
 
-def _header_value(headers: object, name: str) -> Optional[str]:
+def _header_value(headers: object, name: str) -> str | None:
     value = headers.get(name)  # type: ignore[attr-defined]
     return str(value) if value else None
 
@@ -312,7 +304,7 @@ def _normalize_space(value: str) -> str:
     return " ".join(value.split())
 
 
-def _parse_int(value: Optional[str]) -> Optional[int]:
+def _parse_int(value: str | None) -> int | None:
     if value is None:
         return None
 

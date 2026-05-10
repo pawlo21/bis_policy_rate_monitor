@@ -5,18 +5,17 @@ from __future__ import annotations
 import json
 import os
 import zipfile
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
 
 os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
 
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-
 
 DEFAULT_FETCH_MANIFEST_PATH = Path("data/raw/fetch_manifest.json")
 DEFAULT_ARCHIVE_PATH = Path("data/raw/WS_CBPOL_csv_flat.zip")
@@ -106,7 +105,7 @@ class PolicyRateTransformer:
 
     def __init__(
         self,
-        archive_path: Optional[Path] = None,
+        archive_path: Path | None = None,
         output_path: Path = DEFAULT_OUTPUT_PATH,
         manifest_path: Path = DEFAULT_MANIFEST_PATH,
         missing_observations_path: Path = DEFAULT_MISSING_OBSERVATIONS_PATH,
@@ -130,14 +129,14 @@ class PolicyRateTransformer:
             )
 
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        seen_rows: Dict[Tuple[str, str, str], Tuple[str, ...]] = {}
+        seen_rows: dict[tuple[str, str, str], tuple[str, ...]] = {}
         rows_read = 0
         rows_written = 0
         duplicates_dropped = 0
         missing_observation_rows = 0
         wrote_header = False
         wrote_missing_header = False
-        parquet_writer: Optional[pq.ParquetWriter] = None
+        parquet_writer: pq.ParquetWriter | None = None
 
         try:
             with zipfile.ZipFile(archive_path) as archive:
@@ -159,9 +158,7 @@ class PolicyRateTransformer:
                         _validate_columns(raw_chunk.columns)
                         rows_read += len(raw_chunk)
                         tidy_chunk = tidy_policy_rate_frame(raw_chunk)
-                        keep_mask, chunk_duplicates = _dedupe_chunk(
-                            tidy_chunk, seen_rows
-                        )
+                        keep_mask, chunk_duplicates = _dedupe_chunk(tidy_chunk, seen_rows)
                         output_chunk = tidy_chunk.loc[keep_mask, TIDY_COLUMNS]
                         missing_chunk = find_missing_observations(output_chunk)
 
@@ -249,7 +246,7 @@ class PolicyRateTransformer:
             "duplicates_dropped": duplicates_dropped,
             "missing_observation_rows": missing_observation_rows,
             "missing_observations_path": str(self.missing_observations_path),
-            "transformed_at_utc": datetime.now(timezone.utc)
+            "transformed_at_utc": datetime.now(UTC)
             .replace(microsecond=0)
             .isoformat()
             .replace("+00:00", "Z"),
@@ -260,7 +257,7 @@ class PolicyRateTransformer:
             manifest_file.write("\n")
 
 
-def tidy_policy_rate_row(raw_row: Dict[str, str]) -> Dict[str, str]:
+def tidy_policy_rate_row(raw_row: dict[str, str]) -> dict[str, str]:
     raw_frame = pd.DataFrame([raw_row])
     tidy_frame = tidy_policy_rate_frame(raw_frame)
     return tidy_frame.iloc[0].to_dict()
@@ -280,9 +277,7 @@ def tidy_policy_rate_frame(raw_frame: pd.DataFrame) -> pd.DataFrame:
     time_period = clean_text_series(raw_frame[RAW_COLUMNS["time_period"]])
 
     tidy_frame["structure"] = clean_text_series(raw_frame[RAW_COLUMNS["structure"]])
-    tidy_frame["structure_id"] = clean_text_series(
-        raw_frame[RAW_COLUMNS["structure_id"]]
-    )
+    tidy_frame["structure_id"] = clean_text_series(raw_frame[RAW_COLUMNS["structure_id"]])
     tidy_frame["action"] = clean_text_series(raw_frame[RAW_COLUMNS["action"]])
     tidy_frame["freq_code"] = freq["code"]
     tidy_frame["frequency"] = freq["label"]
@@ -300,17 +295,13 @@ def tidy_policy_rate_frame(raw_frame: pd.DataFrame) -> pd.DataFrame:
     tidy_frame["time_format"] = clean_text_series(raw_frame[RAW_COLUMNS["time_format"]])
     tidy_frame["compilation"] = clean_text_series(raw_frame[RAW_COLUMNS["compilation"]])
     tidy_frame["source_ref"] = clean_text_series(raw_frame[RAW_COLUMNS["source_ref"]])
-    tidy_frame["supp_info_breaks"] = clean_text_series(
-        raw_frame[RAW_COLUMNS["supp_info_breaks"]]
-    )
+    tidy_frame["supp_info_breaks"] = clean_text_series(raw_frame[RAW_COLUMNS["supp_info_breaks"]])
     tidy_frame["title"] = clean_text_series(raw_frame[RAW_COLUMNS["title"]])
     tidy_frame["obs_status_code"] = obs_status["code"]
     tidy_frame["obs_status"] = obs_status["label"]
     tidy_frame["obs_conf_code"] = obs_conf["code"]
     tidy_frame["obs_conf"] = obs_conf["label"]
-    tidy_frame["obs_pre_break"] = clean_text_series(
-        raw_frame[RAW_COLUMNS["obs_pre_break"]]
-    )
+    tidy_frame["obs_pre_break"] = clean_text_series(raw_frame[RAW_COLUMNS["obs_pre_break"]])
 
     return tidy_frame[TIDY_COLUMNS]
 
@@ -325,7 +316,7 @@ def find_missing_observations(tidy_frame: pd.DataFrame) -> pd.DataFrame:
 def _write_parquet_chunk(
     output_chunk: pd.DataFrame,
     output_path: Path,
-    parquet_writer: Optional[pq.ParquetWriter],
+    parquet_writer: pq.ParquetWriter | None,
 ) -> pq.ParquetWriter:
     table = pa.Table.from_pandas(output_chunk, preserve_index=False)
 
@@ -336,7 +327,7 @@ def _write_parquet_chunk(
     return parquet_writer
 
 
-def split_code_label(value: str) -> Tuple[str, str]:
+def split_code_label(value: str) -> tuple[str, str]:
     value = clean_text(value)
     if not value:
         return "", ""
@@ -362,7 +353,7 @@ def split_code_label_series(series: pd.Series) -> pd.DataFrame:
     )
 
 
-def clean_text(value: Optional[str]) -> str:
+def clean_text(value: str | None) -> str:
     if value is None:
         return ""
 
@@ -407,14 +398,12 @@ def period_to_start_date(period: str) -> str:
     raise ValueError(f"Unsupported time period format: {period}")
 
 
-def _validate_columns(fieldnames: Optional[Iterable[str]]) -> None:
+def _validate_columns(fieldnames: Iterable[str] | None) -> None:
     if fieldnames is None:
         raise ValueError("Raw BIS CSV has no header row.")
 
     available_columns = set(fieldnames)
-    missing_columns = [
-        column for column in RAW_COLUMNS.values() if column not in available_columns
-    ]
+    missing_columns = [column for column in RAW_COLUMNS.values() if column not in available_columns]
     if missing_columns:
         missing = ", ".join(missing_columns)
         raise ValueError(f"Raw BIS CSV is missing expected columns: {missing}")
@@ -422,17 +411,17 @@ def _validate_columns(fieldnames: Optional[Iterable[str]]) -> None:
 
 def _dedupe_chunk(
     tidy_chunk: pd.DataFrame,
-    seen_rows: Dict[Tuple[str, str, str], Tuple[str, ...]],
-) -> Tuple[List[bool], int]:
+    seen_rows: dict[tuple[str, str, str], tuple[str, ...]],
+) -> tuple[list[bool], int]:
     keep_mask = []
     duplicates_dropped = 0
 
-    dedupe_keys = tidy_chunk[
-        ["freq_code", "ref_area_code", "time_period"]
-    ].itertuples(index=False, name=None)
+    dedupe_keys = tidy_chunk[["freq_code", "ref_area_code", "time_period"]].itertuples(
+        index=False, name=None
+    )
     row_fingerprints = tidy_chunk[TIDY_COLUMNS].itertuples(index=False, name=None)
 
-    for dedupe_key, row_fingerprint in zip(dedupe_keys, row_fingerprints):
+    for dedupe_key, row_fingerprint in zip(dedupe_keys, row_fingerprints, strict=False):
         existing_fingerprint = seen_rows.get(dedupe_key)
         if existing_fingerprint is not None:
             if existing_fingerprint != row_fingerprint:

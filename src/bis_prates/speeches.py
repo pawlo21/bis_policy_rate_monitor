@@ -11,19 +11,17 @@ from __future__ import annotations
 import io
 import logging
 import re
-import sys
 import zipfile
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import pandas as pd
-
 
 log = logging.getLogger(__name__)
 
@@ -71,8 +69,8 @@ class SpeechesAnalysis:
 def build_speeches_analysis(
     policy_rate_data: pd.DataFrame,
     chart_path: Path,
-    today: Optional[datetime] = None,
-) -> Optional[SpeechesAnalysis]:
+    today: datetime | None = None,
+) -> SpeechesAnalysis | None:
     """Build the speeches extension output, returning None when no data loads."""
     speeches = load_recent_speeches(today=today)
     if speeches.empty:
@@ -97,7 +95,7 @@ def build_speeches_analysis(
 
 
 def load_recent_speeches(
-    today: Optional[datetime] = None,
+    today: datetime | None = None,
     lookback_years: int = LOOKBACK_YEARS,
     timeout: int = HTTP_TIMEOUT_SECONDS,
 ) -> pd.DataFrame:
@@ -111,7 +109,7 @@ def load_recent_speeches(
     cutoff = today_ts - pd.DateOffset(years=lookback_years)
     years = list(range(cutoff.year, today_ts.year + 1))
 
-    frames: List[pd.DataFrame] = []
+    frames: list[pd.DataFrame] = []
     for year in years:
         log.info("Loading BIS speeches for %s.", year)
         try:
@@ -128,9 +126,7 @@ def load_recent_speeches(
         return _empty_speeches_frame()
 
     speeches = pd.concat(frames, ignore_index=True)
-    speeches = speeches[
-        speeches["date"].between(cutoff, today_ts, inclusive="both")
-    ].copy()
+    speeches = speeches[speeches["date"].between(cutoff, today_ts, inclusive="both")].copy()
     speeches = speeches.sort_values("date").reset_index(drop=True)
     log.info("Loaded %d BIS speeches since %s.", len(speeches), cutoff.date())
     return speeches
@@ -195,7 +191,7 @@ def compute_term_frequencies(
 
 def compute_monthly_policy_moves(
     policy_rate_data: pd.DataFrame,
-    start: Optional[pd.Timestamp] = None,
+    start: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """Compute signed monthly policy-rate moves by country in basis points.
 
@@ -332,14 +328,6 @@ def render_speeches_chart(
 
 
 def _load_speeches_year(year: int, timeout: int) -> pd.DataFrame:
-    if sys.version_info[:2] < (3, 10):
-        log.info(
-            "Python %s.%s cannot import the installed gingado release; "
-            "using direct BIS ZIP download.",
-            sys.version_info[0],
-            sys.version_info[1],
-        )
-        return _download_speeches_year(year, timeout=timeout)
 
     try:
         from gingado import datasets as gingado_datasets
@@ -385,7 +373,7 @@ def _select_speeches_csv(archive: zipfile.ZipFile, year: int) -> str:
     return max(csv_names, key=lambda name: archive.getinfo(name).file_size)
 
 
-def _find_column(frame: pd.DataFrame, candidates: Iterable[str]) -> Optional[str]:
+def _find_column(frame: pd.DataFrame, candidates: Iterable[str]) -> str | None:
     by_lower = {str(column).strip().lower(): column for column in frame.columns}
     for candidate in candidates:
         if candidate.lower() in by_lower:
@@ -393,8 +381,8 @@ def _find_column(frame: pd.DataFrame, candidates: Iterable[str]) -> Optional[str
     return None
 
 
-def _normalise_today(today: Optional[datetime]) -> pd.Timestamp:
-    value = today if today is not None else datetime.now(timezone.utc)
+def _normalise_today(today: datetime | None) -> pd.Timestamp:
+    value = today if today is not None else datetime.now(UTC)
     timestamp = pd.Timestamp(value)
     if timestamp.tzinfo is not None:
         timestamp = timestamp.tz_convert(None)

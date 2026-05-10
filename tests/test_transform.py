@@ -17,8 +17,8 @@ from bis_prates.transform import (
     find_missing_observations,
     period_to_start_date,
     split_code_label,
-    tidy_policy_rate_row,
     tidy_policy_rate_frame,
+    tidy_policy_rate_row,
 )
 
 
@@ -90,9 +90,7 @@ class TransformParsingTest(unittest.TestCase):
         missing_frame = find_missing_observations(tidy_frame)
 
         self.assertEqual(len(missing_frame), 2)
-        self.assertEqual(
-            list(missing_frame["time_period"]), ["2024-09-21", "2024-09-22"]
-        )
+        self.assertEqual(list(missing_frame["time_period"]), ["2024-09-21", "2024-09-22"])
 
 
 class PolicyRateTransformerTest(unittest.TestCase):
@@ -112,9 +110,7 @@ class PolicyRateTransformerTest(unittest.TestCase):
                     **{
                         RAW_COLUMNS["time_period"]: "2024-09-21",
                         RAW_COLUMNS["obs_value"]: "NaN",
-                        RAW_COLUMNS["obs_status"]: (
-                            "M: Missing value; data cannot exist"
-                        ),
+                        RAW_COLUMNS["obs_status"]: ("M: Missing value; data cannot exist"),
                     }
                 ),
             ]

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from bis_prates.fetch import BisBulkFetcher, DiscoveredDataset, RemoteMetadata
 
-
 DATASET = DiscoveredDataset(
     label="Central bank policy rates (CSV, flat)",
     url="https://data.bis.org/static/bulk/WS_CBPOL_csv_flat.zip",
@@ -67,9 +66,7 @@ class FetchCacheTest(unittest.TestCase):
                     return DATASET
 
                 def get_remote_metadata(self, url: str) -> RemoteMetadata:
-                    return RemoteMetadata(
-                        etag='"unchanged"', last_modified=None, content_length=6
-                    )
+                    return RemoteMetadata(etag='"unchanged"', last_modified=None, content_length=6)
 
                 def _download_archive(
                     self, url: str, archive_path: Path
@@ -116,9 +113,7 @@ class FetchCacheTest(unittest.TestCase):
                     self.download_called = True
                     archive_path.write_bytes(b"new")
                     return (
-                        RemoteMetadata(
-                            etag='"new"', last_modified=None, content_length=3
-                        ),
+                        RemoteMetadata(etag='"new"', last_modified=None, content_length=3),
                         "11507a0e2f5e69d5c840b1bc4d5fc4c4",
                         3,
                     )
@@ -162,9 +157,7 @@ class FetchCacheTest(unittest.TestCase):
                     self.download_called = True
                     archive_path.write_bytes(b"new!")
                     return (
-                        RemoteMetadata(
-                            etag='"new"', last_modified=None, content_length=4
-                        ),
+                        RemoteMetadata(etag='"new"', last_modified=None, content_length=4),
                         "3910cfcd488d171590c90b71e486d224",
                         4,
                     )

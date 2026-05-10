@@ -14,7 +14,6 @@ from bis_prates.speeches import (
     load_recent_speeches,
     render_speeches_chart,
     term_frequency_summary,
-    _load_speeches_year,
 )
 
 
@@ -40,23 +39,6 @@ class SpeechesTest(unittest.TestCase):
         loader.assert_called_once_with(2024, timeout=7)
         self.assertEqual(len(result), 1)
 
-    def test_load_speeches_year_skips_gingado_on_python_39(self) -> None:
-        fallback_frame = pd.DataFrame(
-            {
-                "date": ["2024-06-01"],
-                "text": ["Inflation and policy rates."],
-            }
-        )
-
-        with patch("bis_prates.speeches.sys.version_info", (3, 9, 0)):
-            with patch(
-                "bis_prates.speeches._download_speeches_year",
-                return_value=fallback_frame,
-            ) as downloader:
-                result = _load_speeches_year(2024, timeout=7)
-
-        downloader.assert_called_once_with(2024, timeout=7)
-        self.assertEqual(len(result), 1)
 
     def test_compute_term_frequencies_counts_terms_by_month(self) -> None:
         speeches = pd.DataFrame(

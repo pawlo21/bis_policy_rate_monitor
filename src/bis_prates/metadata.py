@@ -8,11 +8,11 @@ import logging
 import re
 import time
 import zipfile
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from difflib import get_close_matches
 from pathlib import Path
 from typing import IO
-from typing import Dict, Iterable, List, Mapping, Optional
 
 import msgspec
 from pysdmx.api.qb import (
@@ -24,7 +24,6 @@ from pysdmx.api.qb import (
     StructureType,
 )
 from pysdmx.io.json.sdmxjson2.messages.code import JsonCodelistMessage
-
 
 log = logging.getLogger(__name__)
 
@@ -61,25 +60,25 @@ class SdmxCodelistReference:
 @dataclass(frozen=True)
 class InvalidCountryCode:
     code: str
-    suggestions: List[str]
+    suggestions: list[str]
 
 
 class CountryCodeValidationError(ValueError):
-    def __init__(self, invalid_codes: List[InvalidCountryCode]) -> None:
+    def __init__(self, invalid_codes: list[InvalidCountryCode]) -> None:
         self.invalid_codes = invalid_codes
         super().__init__(format_invalid_country_codes(invalid_codes))
 
 
 def fetch_reference_area_codes(
-    archive_path: Optional[Path] = None,
+    archive_path: Path | None = None,
     timeout: float = 20.0,
     cache_path: Path = DEFAULT_METADATA_CACHE_PATH,
     attempts: int = DEFAULT_METADATA_ATTEMPTS,
     retry_delay_seconds: float = DEFAULT_RETRY_DELAY_SECONDS,
-) -> Optional[Dict[str, str]]:
+) -> dict[str, str] | None:
     """Discover and pull BIS reference-area codes using the downloaded CSV."""
     max_attempts = max(1, attempts)
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
 
     for attempt in range(1, max_attempts + 1):
         try:
@@ -119,10 +118,10 @@ def fetch_reference_area_codes(
 
 
 def _fetch_reference_area_codes_live(
-    archive_path: Optional[Path],
+    archive_path: Path | None,
     timeout: float,
     cache_path: Path,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     resolved_archive_path = resolve_raw_archive_path(archive_path)
     log.info("Discovering BIS SDMX dataflow from %s", resolved_archive_path)
     dataflow = discover_dataflow_reference_from_csv(resolved_archive_path)
@@ -150,7 +149,7 @@ def _fetch_reference_area_codes_live(
 def fetch_codelist_codes(
     codelist: SdmxCodelistReference,
     timeout: float = 60.0,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     log.info(
         "SDMX query: %s",
         _structure_query_url("codelist", codelist.agency, codelist.codelist_id, codelist.version),
@@ -168,7 +167,7 @@ def fetch_codelist_codes(
 
 
 def discover_dataflow_reference_from_csv(
-    archive_path: Optional[Path] = None,
+    archive_path: Path | None = None,
 ) -> SdmxDataflowReference:
     """Read STRUCTURE_ID from the downloaded BIS flat CSV."""
     archive_path = resolve_raw_archive_path(archive_path)
@@ -190,7 +189,7 @@ def discover_dataflow_reference_from_csv(
     return SdmxDataflowReference(agency, dataflow_id, version)
 
 
-def resolve_raw_archive_path(archive_path: Optional[Path] = None) -> Path:
+def resolve_raw_archive_path(archive_path: Path | None = None) -> Path:
     if archive_path is not None:
         return Path(archive_path)
 
@@ -204,9 +203,7 @@ def resolve_raw_archive_path(archive_path: Optional[Path] = None) -> Path:
     if len(zip_paths) == 1:
         return zip_paths[0]
     if not zip_paths:
-        raise FileNotFoundError(
-            "No raw BIS archive found. Run `bis-prates fetch` first."
-        )
+        raise FileNotFoundError("No raw BIS archive found. Run `bis-prates fetch` first.")
     raise FileExistsError(
         "Multiple raw ZIP archives found and no fetch manifest identifies which one "
         f"to use: {', '.join(str(path) for path in zip_paths)}"
@@ -240,27 +237,20 @@ def discover_ref_area_codelist(
     dataflow_item = document["data"]["dataflows"][0]
     data_structure_id = _structure_id_from_urn(dataflow_item["structure"])
     data_structure = next(
-        item
-        for item in document["data"]["dataStructures"]
-        if item["id"] == data_structure_id
+        item for item in document["data"]["dataStructures"] if item["id"] == data_structure_id
     )
     dimensions = data_structure["dataStructureComponents"]["dimensionList"]["dimensions"]
     ref_area = next(item for item in dimensions if item["id"] == REF_AREA_DIMENSION_ID)
-    return _codelist_reference_from_urn(
-        ref_area["localRepresentation"]["enumeration"]
-    )
+    return _codelist_reference_from_urn(ref_area["localRepresentation"]["enumeration"])
 
 
-def load_cached_reference_area_codes(cache_path: Path) -> Dict[str, str]:
+def load_cached_reference_area_codes(cache_path: Path) -> dict[str, str]:
     if not cache_path.exists():
         log.info("No BIS SDMX metadata cache found at %s", cache_path)
         return {}
 
     payload = json.loads(cache_path.read_text(encoding="utf-8"))
-    codes = {
-        str(code).upper(): str(name)
-        for code, name in payload.get("codes", {}).items()
-    }
+    codes = {str(code).upper(): str(name) for code, name in payload.get("codes", {}).items()}
     log.info("Loaded %d BIS SDMX reference-area codes from %s", len(codes), cache_path)
     return codes
 
@@ -284,7 +274,7 @@ def write_metadata_cache(
 def validate_country_codes(
     requested_codes: Iterable[str],
     valid_codes: Mapping[str, str],
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Validate requested country codes and return requested -> BIS code mapping."""
     valid = {code.upper(): name for code, name in valid_codes.items()}
     resolved = {}
@@ -299,9 +289,7 @@ def validate_country_codes(
         if actual_code in valid:
             resolved[code] = actual_code
         else:
-            invalid.append(
-                InvalidCountryCode(code, suggest_country_codes(code, valid))
-            )
+            invalid.append(InvalidCountryCode(code, suggest_country_codes(code, valid)))
 
     if invalid:
         raise CountryCodeValidationError(invalid)
@@ -317,14 +305,14 @@ def suggest_country_codes(
     requested_code: str,
     valid_codes: Mapping[str, str],
     limit: int = 3,
-) -> List[str]:
+) -> list[str]:
     code = requested_code.upper()
     suggestions = list(SUGGESTION_ALIASES.get(code, []))
     suggestions.extend(get_close_matches(code, valid_codes.keys(), n=limit, cutoff=0.55))
     return _dedupe([item for item in suggestions if item in valid_codes])[:limit]
 
 
-def format_invalid_country_codes(invalid_codes: List[InvalidCountryCode]) -> str:
+def format_invalid_country_codes(invalid_codes: list[InvalidCountryCode]) -> str:
     parts = []
     for invalid in invalid_codes:
         if invalid.suggestions:
@@ -342,7 +330,7 @@ def _largest_csv_name(archive: zipfile.ZipFile) -> str:
     return max(csv_names, key=lambda name: archive.getinfo(name).file_size)
 
 
-def _first_csv_row(raw_file: IO[bytes]) -> Dict[str, str]:
+def _first_csv_row(raw_file: IO[bytes]) -> dict[str, str]:
     text_file = (line.decode("utf-8-sig") for line in raw_file)
     reader = csv.DictReader(text_file)
     try:
@@ -372,13 +360,10 @@ def _structure_query_url(
     resource_id: str,
     version: str,
 ) -> str:
-    return (
-        f"{BIS_SDMX_API_ENDPOINT}/structure/"
-        f"{artefact_type}/{agency}/{resource_id}/{version}"
-    )
+    return f"{BIS_SDMX_API_ENDPOINT}/structure/{artefact_type}/{agency}/{resource_id}/{version}"
 
 
-def _dedupe(items: Iterable[str]) -> List[str]:
+def _dedupe(items: Iterable[str]) -> list[str]:
     seen = set()
     out = []
     for item in items:
