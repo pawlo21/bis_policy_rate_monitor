@@ -19,7 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 transformer = [
     "torch>=2.1,<3",
-    "transformers>=4.40,<5",
+    "transformers>=4.40,<6",
 ]
 
 [project.scripts]
