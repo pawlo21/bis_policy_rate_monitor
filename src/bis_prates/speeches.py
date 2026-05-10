@@ -11,7 +11,6 @@ from __future__ import annotations
 import io
 import logging
 import re
-import sys
 import zipfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -331,15 +330,6 @@ def render_speeches_chart(
 
 
 def _load_speeches_year(year: int, timeout: int) -> pd.DataFrame:
-    if sys.version_info[:2] < (3, 10):
-        log.info(
-            "Python %s.%s cannot import the installed gingado release; "
-            "using direct BIS ZIP download.",
-            sys.version_info[0],
-            sys.version_info[1],
-        )
-        return _download_speeches_year(year, timeout=timeout)
-
     try:
         from gingado import datasets as gingado_datasets
 
