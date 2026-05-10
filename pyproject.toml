@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
     "gingado>=0.2.7,<0.3",
     "matplotlib>=3.7,<4",
-    "pandas>=2.0,<3",
+    "pandas>=2.0,<4",
     "pyarrow>=15,<23",
     "pysdmx>=1.14,<2",
 ]
