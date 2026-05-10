@@ -215,9 +215,7 @@ class PolicyRateTransformer:
         """Open the raw BIS CSV inside `archive_path` and yield a chunked reader."""
         with zipfile.ZipFile(archive_path) as archive:
             if self.raw_csv_name not in archive.namelist():
-                raise FileNotFoundError(
-                    f"{self.raw_csv_name} not found in archive: {archive_path}"
-                )
+                raise FileNotFoundError(f"{self.raw_csv_name} not found in archive: {archive_path}")
             with archive.open(self.raw_csv_name) as raw_file:
                 yield pd.read_csv(
                     raw_file,
