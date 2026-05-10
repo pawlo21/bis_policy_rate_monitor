@@ -57,6 +57,7 @@ select = [
     "S",     # bandit-style security
     "SIM",   # simplify
     "RUF",   # ruff-specific
+    "D",     # pydocstyle (Google convention configured below)
 ]
 ignore = [
     "E501",  # line length is enforced by the formatter, not the linter
@@ -66,6 +67,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "N802"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.isort]
 known-first-party = ["bis_prates"]

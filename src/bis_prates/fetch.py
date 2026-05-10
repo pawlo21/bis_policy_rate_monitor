@@ -22,6 +22,8 @@ USER_AGENT = "bis-policy-rate-monitor/0.1"
 
 @dataclass(frozen=True)
 class DiscoveredDataset:
+    """Reference to a BIS bulk dataset discovered on the bulk-download page."""
+
     label: str
     url: str
     release_date: str | None
@@ -29,12 +31,15 @@ class DiscoveredDataset:
 
 @dataclass(frozen=True)
 class RemoteMetadata:
+    """HTTP cache validators returned by HEAD or GET on a BIS archive."""
+
     etag: str | None
     last_modified: str | None
     content_length: int | None
 
     @classmethod
     def from_headers(cls, headers: object) -> RemoteMetadata:
+        """Build a `RemoteMetadata` from a urllib response headers object."""
         content_length = _parse_int(_header_value(headers, "Content-Length"))
         return cls(
             etag=_header_value(headers, "ETag"),
@@ -45,6 +50,8 @@ class RemoteMetadata:
 
 @dataclass(frozen=True)
 class FetchResult:
+    """Outcome of `BisBulkFetcher.fetch()`: where the archive lives and whether it was downloaded."""
+
     downloaded: bool
     archive_path: Path
     manifest_path: Path
@@ -62,6 +69,15 @@ class BisBulkFetcher:
         dataset_label: str = DATASET_LABEL,
         timeout_seconds: int = 30,
     ) -> None:
+        """Configure cache location and HTTP timeouts.
+
+        Args:
+            cache_dir: Directory where the downloaded archive and manifest live.
+            bulk_download_url: BIS bulk-downloads page to scrape for the dataset link.
+            dataset_label: Anchor text used to identify the dataset on the page.
+            timeout_seconds: Per-request HTTP timeout.
+
+        """
         self.cache_dir = Path(cache_dir)
         self.bulk_download_url = bulk_download_url
         self.dataset_label = dataset_label
@@ -69,6 +85,11 @@ class BisBulkFetcher:
         self.manifest_path = self.cache_dir / MANIFEST_FILENAME
 
     def fetch(self) -> FetchResult:
+        """Discover, conditionally download, and cache the BIS archive.
+
+        Returns a `FetchResult` indicating whether the cache was reused
+        (`downloaded=False`) or a new archive was fetched.
+        """
         dataset = self.discover_dataset()
         metadata = self.get_remote_metadata(dataset.url)
         archive_path = self.cache_dir / _filename_from_url(dataset.url)
@@ -104,6 +125,12 @@ class BisBulkFetcher:
         )
 
     def discover_dataset(self) -> DiscoveredDataset:
+        """Locate the dataset link on the BIS bulk-downloads page.
+
+        Raises:
+            LookupError: If no link matching `dataset_label` is found.
+
+        """
         html = self._http_get_text(self.bulk_download_url)
         parser = _BulkDownloadParser(self.bulk_download_url)
         parser.feed(html)
@@ -123,6 +150,12 @@ class BisBulkFetcher:
         )
 
     def get_remote_metadata(self, url: str) -> RemoteMetadata:
+        """Fetch HEAD-style validators (`ETag`, `Last-Modified`, `Content-Length`).
+
+        Some BIS endpoints reject HEAD with 403/405; in that case an empty
+        `RemoteMetadata` is returned and the caller should fall back to a
+        full GET to obtain validators.
+        """
         request = Request(
             url,
             headers={"User-Agent": USER_AGENT},

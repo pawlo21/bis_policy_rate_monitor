@@ -16,6 +16,11 @@ LOG_FORMAT = "%(levelname)s %(name)s: %(message)s"
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the argparse parser used by the `bis-prates` CLI.
+
+    Exposed as a top-level function so tests can construct the parser
+    without invoking `main()`.
+    """
     parser = argparse.ArgumentParser(
         prog="bis-prates",
         description=(
@@ -148,6 +153,13 @@ def _parse_bool(value: object) -> bool:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the CLI and return a process exit code.
+
+    Args:
+        argv: Optional list of arguments. Defaults to `sys.argv[1:]`,
+            which makes this the standard `console_scripts` entry point.
+
+    """
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     parser = build_parser()
     args_list = list(argv) if argv is not None else sys.argv[1:]

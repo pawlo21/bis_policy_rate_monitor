@@ -1,3 +1,5 @@
+"""Unit tests for the lexicon-based speeches extension."""
+
 from __future__ import annotations
 
 import tempfile
@@ -18,7 +20,10 @@ from bis_prates.speeches import (
 
 
 class SpeechesTest(unittest.TestCase):
+    """Term-frequency counting, monthly policy moves, and chart rendering."""
+
     def test_load_recent_speeches_calls_year_loader_with_timeout_keyword(self) -> None:
+        """`load_recent_speeches` forwards the `timeout` kwarg to the year loader."""
         raw_speeches = pd.DataFrame(
             {
                 "date": ["2024-06-01"],
@@ -40,6 +45,7 @@ class SpeechesTest(unittest.TestCase):
         self.assertEqual(len(result), 1)
 
     def test_compute_term_frequencies_counts_terms_by_month(self) -> None:
+        """Speech term hits aggregate correctly per `(month, term)`."""
         speeches = pd.DataFrame(
             {
                 "date": ["2024-06-01", "2024-06-15", "2024-07-01"],
@@ -64,6 +70,7 @@ class SpeechesTest(unittest.TestCase):
         self.assertEqual(july["tightening"], 1)
 
     def test_compute_monthly_policy_moves_returns_signed_country_bps(self) -> None:
+        """Monthly policy moves are signed and expressed in basis points per country."""
         policy_rates = pd.DataFrame(
             {
                 "requested_code": ["US", "US", "GB", "GB"],
@@ -91,6 +98,7 @@ class SpeechesTest(unittest.TestCase):
         )
 
     def test_term_summary_and_chart_render(self) -> None:
+        """The term-frequency summary table and chart PNG both render successfully."""
         frequencies = pd.DataFrame(
             {
                 "month": [pd.Timestamp("2024-06-01")],

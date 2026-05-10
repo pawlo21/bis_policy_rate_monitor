@@ -1,3 +1,5 @@
+"""Unit tests for the BIS policy-rate tidy transformation."""
+
 from __future__ import annotations
 
 import csv
@@ -23,6 +25,7 @@ from bis_prates.transform import (
 
 
 def sample_raw_row(**overrides: str) -> dict[str, str]:
+    """Return a complete raw BIS row with default values, applying any overrides."""
     row = {
         RAW_COLUMNS["structure"]: "dataflow",
         RAW_COLUMNS["structure_id"]: "BIS:WS_CBPOL(1.0): Central bank policy rates",
@@ -48,17 +51,22 @@ def sample_raw_row(**overrides: str) -> dict[str, str]:
 
 
 class TransformParsingTest(unittest.TestCase):
+    """Pure parsing helpers: code/label splitting, period parsing, missing-obs detection."""
+
     def test_split_code_label(self) -> None:
+        """SDMX `code: label` strings split correctly; non-coded values pass through."""
         self.assertEqual(split_code_label("US: United States"), ("US", "United States"))
         self.assertEqual(split_code_label("Target rate."), ("Target rate.", ""))
         self.assertEqual(split_code_label(""), ("", ""))
 
     def test_period_to_start_date(self) -> None:
+        """Monthly, quarterly, and annual periods all map to the right ISO start date."""
         self.assertEqual(period_to_start_date("2024-01"), "2024-01-01")
         self.assertEqual(period_to_start_date("2024-Q3"), "2024-07-01")
         self.assertEqual(period_to_start_date("2024"), "2024-01-01")
 
     def test_tidy_policy_rate_row(self) -> None:
+        """A single raw BIS row tidies to the expected schema."""
         tidy_row = tidy_policy_rate_row(sample_raw_row())
 
         self.assertEqual(tidy_row["freq_code"], "M")
@@ -70,6 +78,7 @@ class TransformParsingTest(unittest.TestCase):
         self.assertEqual(tidy_row["decimals"], "4")
 
     def test_find_missing_observations(self) -> None:
+        """Rows with empty/`NaN` values or status `M` are flagged as missing."""
         raw_rows = [
             sample_raw_row(),
             sample_raw_row(
@@ -94,7 +103,10 @@ class TransformParsingTest(unittest.TestCase):
 
 
 class PolicyRateTransformerTest(unittest.TestCase):
+    """End-to-end ZIP-to-parquet transformation."""
+
     def test_transform_writes_tidy_parquet_and_deduplicates_rows(self) -> None:
+        """Duplicates collapse, missing rows divert to the audit CSV, manifest counts match."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             archive_path = root / "raw.zip"

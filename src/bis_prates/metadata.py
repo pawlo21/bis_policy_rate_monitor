@@ -45,6 +45,8 @@ SUGGESTION_ALIASES = {
 
 @dataclass(frozen=True)
 class SdmxDataflowReference:
+    """SDMX dataflow identity (`agency:id(version)`)."""
+
     agency: str
     dataflow_id: str
     version: str
@@ -52,6 +54,8 @@ class SdmxDataflowReference:
 
 @dataclass(frozen=True)
 class SdmxCodelistReference:
+    """SDMX codelist identity (`agency:id(version)`)."""
+
     agency: str
     codelist_id: str
     version: str
@@ -59,12 +63,17 @@ class SdmxCodelistReference:
 
 @dataclass(frozen=True)
 class InvalidCountryCode:
+    """A requested country code that did not validate, plus suggested alternatives."""
+
     code: str
     suggestions: list[str]
 
 
 class CountryCodeValidationError(ValueError):
+    """Raised when one or more requested country codes are not in the BIS codelist."""
+
     def __init__(self, invalid_codes: list[InvalidCountryCode]) -> None:
+        """Build the error from a list of invalid codes with their suggestions."""
         self.invalid_codes = invalid_codes
         super().__init__(format_invalid_country_codes(invalid_codes))
 
@@ -150,6 +159,7 @@ def fetch_codelist_codes(
     codelist: SdmxCodelistReference,
     timeout: float = 60.0,
 ) -> dict[str, str]:
+    """Pull every code from a BIS SDMX codelist, returning `{code: name}`."""
     log.info(
         "SDMX query: %s",
         _structure_query_url("codelist", codelist.agency, codelist.codelist_id, codelist.version),
@@ -190,6 +200,16 @@ def discover_dataflow_reference_from_csv(
 
 
 def resolve_raw_archive_path(archive_path: Path | None = None) -> Path:
+    """Resolve which raw BIS ZIP to use for SDMX discovery.
+
+    Resolution order: the explicit `archive_path` argument, then the path
+    in `data/raw/fetch_manifest.json`, then the single `.zip` in `data/raw/`.
+
+    Raises:
+        FileNotFoundError: If no archive can be located.
+        FileExistsError: If multiple archives exist and no manifest disambiguates.
+
+    """
     if archive_path is not None:
         return Path(archive_path)
 
@@ -245,6 +265,7 @@ def discover_ref_area_codelist(
 
 
 def load_cached_reference_area_codes(cache_path: Path) -> dict[str, str]:
+    """Load reference-area codes from disk, returning `{}` if no cache file exists."""
     if not cache_path.exists():
         log.info("No BIS SDMX metadata cache found at %s", cache_path)
         return {}
@@ -261,6 +282,7 @@ def write_metadata_cache(
     codelist: SdmxCodelistReference,
     codes: Mapping[str, str],
 ) -> None:
+    """Persist the SDMX metadata cache as deterministic JSON."""
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "dataflow": asdict(dataflow),
@@ -306,6 +328,10 @@ def suggest_country_codes(
     valid_codes: Mapping[str, str],
     limit: int = 3,
 ) -> list[str]:
+    """Suggest up to `limit` valid codes resembling `requested_code`.
+
+    Combines a curated alias map (e.g. `UK -> GB`) with `difflib` close matches.
+    """
     code = requested_code.upper()
     suggestions = list(SUGGESTION_ALIASES.get(code, []))
     suggestions.extend(get_close_matches(code, valid_codes.keys(), n=limit, cutoff=0.55))
@@ -313,6 +339,7 @@ def suggest_country_codes(
 
 
 def format_invalid_country_codes(invalid_codes: list[InvalidCountryCode]) -> str:
+    """Format an invalid-codes list into a human-readable error string."""
     parts = []
     for invalid in invalid_codes:
         if invalid.suggestions:

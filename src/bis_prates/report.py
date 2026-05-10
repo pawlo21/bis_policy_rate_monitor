@@ -77,6 +77,8 @@ REPORT_COLUMNS = [
 
 @dataclass(frozen=True)
 class ReportResult:
+    """Paths and counts produced by `PolicyRateReporter.report()`."""
+
     summary_csv_path: Path
     summary_json_path: Path
     chart_path: Path
@@ -97,6 +99,7 @@ class PolicyRateReporter:
         metadata_provider: Callable[[], Mapping[str, str] | None] = (fetch_reference_area_codes),
         speeches_provider: Callable[[pd.DataFrame, Path], SpeechesAnalysis | None] | None = None,
     ) -> None:
+        """Configure paths and the metadata/speeches providers (injected for tests)."""
         self.tidy_data_path = Path(tidy_data_path)
         self.output_dir = Path(output_dir)
         self.preferred_frequency = preferred_frequency
@@ -109,6 +112,13 @@ class PolicyRateReporter:
         self.report_html_path = self.output_dir / REPORT_HTML_NAME
 
     def report(self, countries: Iterable[str], start: str) -> ReportResult:
+        """Generate every report artefact (CSV, JSON, chart, HTML).
+
+        Args:
+            countries: Comma-separated string or iterable of BIS country codes.
+            start: ISO start date for the chart range.
+
+        """
         requested_codes = parse_country_codes(countries)
         if not requested_codes:
             raise ValueError("At least one country code is required.")
@@ -186,6 +196,7 @@ class PolicyRateReporter:
 
 
 def parse_country_codes(countries: Iterable[str]) -> list[str]:
+    """Normalise a comma-separated string or iterable into uppercased codes."""
     raw_codes = countries.split(",") if isinstance(countries, str) else countries
 
     codes = []
@@ -197,6 +208,7 @@ def parse_country_codes(countries: Iterable[str]) -> list[str]:
 
 
 def load_tidy_data(path: Path) -> pd.DataFrame:
+    """Read the tidy parquet and add helper columns used by the report."""
     if not path.exists():
         raise FileNotFoundError(
             f"Processed tidy dataset not found: {path}. Run 'bis-prates transform' first."
@@ -215,6 +227,11 @@ def resolve_country_codes(
     data: pd.DataFrame,
     metadata_codes: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
+    """Map requested codes to BIS codes, validating against SDMX metadata when available.
+
+    Falls back to local-dataset validation if `metadata_codes` is `None`.
+    Raises `ValueError` for codes that don't exist in the local dataset.
+    """
     using_sdmx_metadata = metadata_codes is not None
     if metadata_codes is None:
         log.warning(
@@ -249,6 +266,7 @@ def select_report_data(
     resolved_codes: dict[str, str],
     preferred_frequency: str,
 ) -> pd.DataFrame:
+    """Filter the tidy dataset to the chosen countries and one frequency per country."""
     frames = []
     for requested_code in requested_codes:
         actual_code = resolved_codes[requested_code]
@@ -271,6 +289,7 @@ def compute_latest_snapshot(
     requested_codes: list[str],
     resolved_codes: dict[str, str],
 ) -> pd.DataFrame:
+    """Build a per-country latest-observation summary with the change from the previous obs."""
     rows = []
     for requested_code in requested_codes:
         country_data = report_data[report_data["requested_code"].eq(requested_code)]
@@ -319,6 +338,7 @@ def write_summary_json(
     source_path: Path,
     speeches_analysis: SpeechesAnalysis | None = None,
 ) -> None:
+    """Serialise the summary frame plus run metadata to a JSON file."""
     payload = {
         "generated_at_utc": _utc_now(),
         "source_path": str(source_path),
@@ -342,6 +362,7 @@ def write_policy_rate_chart(
     chart_path: Path,
     start: str,
 ) -> None:
+    """Render a multi-country policy-rate line chart to `chart_path`."""
     fig, ax = plt.subplots(figsize=(10, 5.5))
 
     if chart_data.empty:
@@ -377,6 +398,7 @@ def write_html_report(
     start: str,
     speeches_analysis: SpeechesAnalysis | None = None,
 ) -> None:
+    """Write a self-contained HTML report with the chart embedded as base64."""
     chart_b64 = base64.b64encode(chart_path.read_bytes()).decode("ascii")
     table_html = _summary_table_html(summary)
     speeches_html = _speeches_section_html(speeches_analysis)

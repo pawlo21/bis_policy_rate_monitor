@@ -1,3 +1,5 @@
+"""Unit tests for `PolicyRateReporter` and the report helper functions."""
+
 from __future__ import annotations
 
 import json
@@ -16,7 +18,10 @@ from bis_prates.speeches import SpeechesAnalysis, render_speeches_chart
 
 
 class ReportTest(unittest.TestCase):
+    """Country-code parsing/resolution and end-to-end report writing."""
+
     def test_parse_country_codes_and_resolve_euro_area_alias(self) -> None:
+        """Comma-separated codes are parsed and `EA` resolves to `XM` via the alias."""
         data = pd.DataFrame(
             {
                 "ref_area_code": ["US", "XM"],
@@ -34,6 +39,7 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(resolved, {"US": "US", "EA": "XM"})
 
     def test_resolve_country_codes_uses_local_validation_without_sdmx(self) -> None:
+        """Local-dataset validation kicks in when SDMX metadata is `None`."""
         data = pd.DataFrame(
             {
                 "ref_area_code": ["US", "XM"],
@@ -47,6 +53,7 @@ class ReportTest(unittest.TestCase):
         self.assertIn("falling back to local dataset code validation", "\n".join(logs.output))
 
     def test_report_writes_summary_chart_and_html(self) -> None:
+        """A full report run writes summary CSV/JSON, chart PNG, and HTML."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             tidy_path = root / "policy_rates_tidy.parquet"
@@ -83,6 +90,7 @@ class ReportTest(unittest.TestCase):
             self.assertEqual(ea_row["ref_area_code"], "XM")
 
     def test_report_includes_speeches_extension_when_available(self) -> None:
+        """When a speeches provider is supplied, its outputs land in JSON and HTML."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             tidy_path = root / "policy_rates_tidy.parquet"
@@ -105,6 +113,7 @@ class ReportTest(unittest.TestCase):
             self.assertIn("Speeches terms vs policy-rate moves", report_html)
 
     def test_report_without_speeches_removes_stale_speeches_chart(self) -> None:
+        """Stale `speeches_terms.png` from prior runs is removed when speeches are off."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             tidy_path = root / "policy_rates_tidy.parquet"
@@ -129,6 +138,7 @@ class ReportTest(unittest.TestCase):
             self.assertNotIn("Speeches terms vs policy-rate moves", report_html)
 
     def test_report_continues_when_sdmx_metadata_is_unavailable(self) -> None:
+        """The report still runs when the metadata provider returns `None`."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             tidy_path = root / "policy_rates_tidy.parquet"
