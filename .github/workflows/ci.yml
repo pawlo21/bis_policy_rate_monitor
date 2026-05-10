@@ -44,6 +44,9 @@ jobs:
       - name: Bandit security scan
         run: uv run bandit -r src/ -c pyproject.toml
 
+      - name: License scan
+        run: uv run pip-licenses --fail-on="GPL;AGPL;LGPL" --format=markdown
+
       - name: Type check (mypy)
         run: uv run mypy
 

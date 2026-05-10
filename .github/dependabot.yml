@@ -1,0 +1,53 @@
+# Dependabot version-update config.
+# Companion to GitHub's Dependabot security alerts (toggled in repo settings)
+# which only fire on known CVEs; this config opens routine bump PRs for
+# dependencies that drift even without a vulnerability.
+#
+# Pre-commit hook versions are not managed here (Dependabot does not yet
+# support the pre-commit ecosystem). Run `uv run pre-commit autoupdate`
+# manually, or watch the pre-commit-ci.com bot if added later.
+
+version: 2
+updates:
+  # Python dependencies declared in pyproject.toml (runtime + dev groups).
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      # Roll up minor/patch updates of dev tools into one PR to reduce noise.
+      dev-tooling:
+        patterns:
+          - "ruff"
+          - "mypy"
+          - "bandit"
+          - "pytest*"
+          - "pre-commit"
+          - "pip-licenses"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions versions referenced in .github/workflows/*.yml.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
