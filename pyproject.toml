@@ -34,6 +34,7 @@ dev = [
     "bandit>=1.7",
     "pre-commit>=3.7",
     "pip-licenses>=4",
+    "pylint>=3.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -114,3 +115,21 @@ warn_redundant_casts = true
 no_implicit_optional = true
 check_untyped_defs = true
 disallow_untyped_defs = false
+
+[tool.pylint.MAIN]
+py-version = "3.11"
+extension-pkg-allow-list = ["pyarrow"]
+
+[tool.pylint.MESSAGES_CONTROL]
+# Disable rules covered by ruff or noisy on this codebase:
+disable = [
+    "missing-module-docstring",      # ruff D100
+    "missing-class-docstring",       # ruff D101
+    "missing-function-docstring",    # ruff D103
+    "line-too-long",                 # ruff format
+    "too-few-public-methods",        # noisy on dataclasses
+    "too-many-arguments",
+    "too-many-locals",
+    "duplicate-code",                # noisy across tests
+    "import-error",                  # mypy/ruff already check
+]

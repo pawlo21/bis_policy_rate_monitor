@@ -11,11 +11,14 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+# `ARROW_USER_SIMD_LEVEL` must be set before pyarrow is imported anywhere,
+# otherwise pyarrow's runtime SIMD detection emits noisy stderr warnings on
+# some macOS / older-CPU environments. Same justification as ruff's E402.
 os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
 
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
+import pandas as pd  # pylint: disable=wrong-import-position
+import pyarrow as pa  # pylint: disable=wrong-import-position
+import pyarrow.parquet as pq  # pylint: disable=wrong-import-position
 
 DEFAULT_FETCH_MANIFEST_PATH = Path("data/raw/fetch_manifest.json")
 DEFAULT_ARCHIVE_PATH = Path("data/raw/WS_CBPOL_csv_flat.zip")
@@ -107,6 +110,7 @@ class PolicyRateTransformer:
 
     def __init__(
         self,
+        *,
         archive_path: Path | None = None,
         output_path: Path = DEFAULT_OUTPUT_PATH,
         manifest_path: Path = DEFAULT_MANIFEST_PATH,
@@ -243,6 +247,7 @@ class PolicyRateTransformer:
 
     def _write_manifest(
         self,
+        *,
         archive_path: Path,
         rows_read: int,
         rows_written: int,

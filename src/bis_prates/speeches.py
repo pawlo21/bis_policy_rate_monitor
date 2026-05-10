@@ -320,12 +320,23 @@ def render_speeches_chart(
 
 def _load_speeches_year(year: int, timeout: int) -> pd.DataFrame:
     try:
-        from gingado import datasets as gingado_datasets
+        # gingado is an optional dependency; importing inside the try block
+        # lets us fall back to a direct BIS ZIP download when it is missing,
+        # without forcing every user to install the heavy ML extras.
+        from gingado import datasets as gingado_datasets  # pylint: disable=import-outside-toplevel
 
         GINGADO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         gingado_datasets.CACHE_DIRECTORY = str(GINGADO_CACHE_DIR)
         return gingado_datasets.load_CB_speeches(year=year, cache=True, timeout=timeout)
-    except Exception as error:
+    except (
+        ImportError,
+        OSError,
+        AttributeError,
+        RuntimeError,
+        ValueError,
+        HTTPError,
+        URLError,
+    ) as error:
         log.warning(
             "gingado could not load BIS speeches for %s (%s); trying direct BIS ZIP.",
             year,

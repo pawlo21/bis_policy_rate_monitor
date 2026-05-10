@@ -27,19 +27,19 @@ os.environ.setdefault(
 os.environ.setdefault("ARROW_USER_SIMD_LEVEL", "NONE")
 Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
 
-import matplotlib  # noqa: E402
+import matplotlib  # noqa: E402  # pylint: disable=wrong-import-position
 
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt  # noqa: E402
-import pandas as pd  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402  # pylint: disable=wrong-import-position
+import pandas as pd  # noqa: E402  # pylint: disable=wrong-import-position
 
-from bis_prates.metadata import (  # noqa: E402
+from bis_prates.metadata import (  # noqa: E402  # pylint: disable=wrong-import-position
     COUNTRY_ALIASES,
     fetch_reference_area_codes,
     validate_country_codes,
 )
-from bis_prates.speeches import (  # noqa: E402
+from bis_prates.speeches import (  # noqa: E402  # pylint: disable=wrong-import-position
     SpeechesAnalysis,
     term_frequency_summary,
 )
@@ -88,11 +88,39 @@ class ReportResult:
     speeches_chart_path: Path | None = None
 
 
+@dataclass(frozen=True)
+class _OutputPaths:
+    """Output filenames derived from the report's `output_dir`.
+
+    Bundled as a small frozen dataclass so `PolicyRateReporter` keeps the
+    five derived paths as one logical attribute (`self.paths`) rather than
+    five separate ones.
+    """
+
+    summary_csv: Path
+    summary_json: Path
+    chart: Path
+    speeches_chart: Path
+    report_html: Path
+
+    @classmethod
+    def under(cls, output_dir: Path) -> _OutputPaths:
+        """Build the path bundle for the given `output_dir`."""
+        return cls(
+            summary_csv=output_dir / SUMMARY_CSV_NAME,
+            summary_json=output_dir / SUMMARY_JSON_NAME,
+            chart=output_dir / CHART_NAME,
+            speeches_chart=output_dir / SPEECHES_CHART_NAME,
+            report_html=output_dir / REPORT_HTML_NAME,
+        )
+
+
 class PolicyRateReporter:
     """Create the report outputs required by the exercise."""
 
     def __init__(
         self,
+        *,
         tidy_data_path: Path = DEFAULT_TIDY_DATA_PATH,
         output_dir: Path = DEFAULT_OUTPUT_DIR,
         preferred_frequency: str = PREFERRED_FREQUENCY,
@@ -105,11 +133,7 @@ class PolicyRateReporter:
         self.preferred_frequency = preferred_frequency
         self.metadata_provider = metadata_provider
         self.speeches_provider = speeches_provider
-        self.summary_csv_path = self.output_dir / SUMMARY_CSV_NAME
-        self.summary_json_path = self.output_dir / SUMMARY_JSON_NAME
-        self.chart_path = self.output_dir / CHART_NAME
-        self.speeches_chart_path = self.output_dir / SPEECHES_CHART_NAME
-        self.report_html_path = self.output_dir / REPORT_HTML_NAME
+        self.paths = _OutputPaths.under(self.output_dir)
 
     def report(self, countries: Iterable[str], start: str) -> ReportResult:
         """Generate every report artefact (CSV, JSON, chart, HTML).
@@ -142,21 +166,21 @@ class PolicyRateReporter:
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
         speeches_analysis = self._build_speeches_analysis(report_data)
-        summary.to_csv(self.summary_csv_path, index=False)
+        summary.to_csv(self.paths.summary_csv, index=False)
         write_summary_json(
             summary=summary,
-            path=self.summary_json_path,
+            path=self.paths.summary_json,
             requested_codes=requested_codes,
             resolved_codes=resolved_codes,
             start=start,
             source_path=self.tidy_data_path,
             speeches_analysis=speeches_analysis,
         )
-        write_policy_rate_chart(chart_data, self.chart_path, start)
+        write_policy_rate_chart(chart_data, self.paths.chart, start)
         write_html_report(
             summary=summary,
-            chart_path=self.chart_path,
-            report_path=self.report_html_path,
+            chart_path=self.paths.chart,
+            report_path=self.paths.report_html,
             requested_codes=requested_codes,
             resolved_codes=resolved_codes,
             start=start,
@@ -164,10 +188,10 @@ class PolicyRateReporter:
         )
 
         return ReportResult(
-            summary_csv_path=self.summary_csv_path,
-            summary_json_path=self.summary_json_path,
-            chart_path=self.chart_path,
-            report_html_path=self.report_html_path,
+            summary_csv_path=self.paths.summary_csv,
+            summary_json_path=self.paths.summary_json,
+            chart_path=self.paths.chart,
+            report_html_path=self.paths.report_html,
             countries=requested_codes,
             rows_written=len(summary),
             speeches_chart_path=(
@@ -180,18 +204,21 @@ class PolicyRateReporter:
         report_data: pd.DataFrame,
     ) -> SpeechesAnalysis | None:
         if self.speeches_provider is None:
-            self.speeches_chart_path.unlink(missing_ok=True)
+            self.paths.speeches_chart.unlink(missing_ok=True)
             return None
 
         try:
-            speeches_analysis = self.speeches_provider(report_data, self.speeches_chart_path)
-        except Exception as error:
+            speeches_analysis = self.speeches_provider(report_data, self.paths.speeches_chart)
+        # The speeches provider is an injected callable that may originate
+        # from anywhere in user code; treat any failure as "extension skipped"
+        # rather than letting a third-party error abort the main report.
+        except Exception as error:  # pylint: disable=broad-exception-caught
             log.warning("Skipping speeches extension: %s", error)
-            self.speeches_chart_path.unlink(missing_ok=True)
+            self.paths.speeches_chart.unlink(missing_ok=True)
             return None
 
         if speeches_analysis is None:
-            self.speeches_chart_path.unlink(missing_ok=True)
+            self.paths.speeches_chart.unlink(missing_ok=True)
         return speeches_analysis
 
 
@@ -330,6 +357,7 @@ def compute_latest_snapshot(
 
 
 def write_summary_json(
+    *,
     summary: pd.DataFrame,
     path: Path,
     requested_codes: list[str],
@@ -390,6 +418,7 @@ def write_policy_rate_chart(
 
 
 def write_html_report(
+    *,
     summary: pd.DataFrame,
     chart_path: Path,
     report_path: Path,

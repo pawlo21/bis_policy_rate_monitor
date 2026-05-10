@@ -81,10 +81,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _fetch(args: argparse.Namespace) -> int:
+def _fetch(_args: argparse.Namespace) -> int:
     try:
         result = BisBulkFetcher().fetch()
-    except Exception as error:
+    # Top-level CLI handler: convert any internal failure into exit code 1
+    # with a friendly message so the user does not see a Python traceback.
+    except Exception as error:  # pylint: disable=broad-exception-caught
         print(f"Fetch failed: {error}", file=sys.stderr)
         return 1
 
@@ -101,10 +103,11 @@ def _fetch(args: argparse.Namespace) -> int:
     return 0
 
 
-def _transform(args: argparse.Namespace) -> int:
+def _transform(_args: argparse.Namespace) -> int:
     try:
         result = PolicyRateTransformer().transform()
-    except Exception as error:
+    # Top-level CLI handler: convert any internal failure into exit code 1.
+    except Exception as error:  # pylint: disable=broad-exception-caught
         print(f"Transform failed: {error}", file=sys.stderr)
         return 1
 
@@ -127,7 +130,8 @@ def _report(args: argparse.Namespace) -> int:
             countries=args.countries,
             start=args.start,
         )
-    except Exception as error:
+    # Top-level CLI handler: convert any internal failure into exit code 1.
+    except Exception as error:  # pylint: disable=broad-exception-caught
         print(f"Report failed: {error}", file=sys.stderr)
         return 1
 
