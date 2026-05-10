@@ -50,6 +50,9 @@ jobs:
       - name: Type check (mypy)
         run: uv run mypy
 
+      - name: Pylint
+        run: uv run pylint src/
+
       - name: Tests with coverage
         run: uv run pytest
 

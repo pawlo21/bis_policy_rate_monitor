@@ -215,6 +215,7 @@ class BisBulkFetcher:
     def _write_manifest(
         self,
         archive_path: Path,
+        *,
         dataset: DiscoveredDataset,
         metadata: RemoteMetadata,
         sha256_hash: str,
@@ -249,29 +250,42 @@ class BisBulkFetcher:
         dataset: DiscoveredDataset,
         metadata: RemoteMetadata,
     ) -> bool:
+        # Two-step check: first the invariants that must hold for any cache hit
+        # (file exists, URL/release-date/size match what we just discovered),
+        # then a validator agreement check that picks one of release_date /
+        # ETag / Last-Modified as the source of truth.
+        if not self._cache_invariants_match(archive_path, manifest, dataset, metadata):
+            return False
+        return self._cache_validator_agrees(manifest, dataset, metadata)
+
+    @staticmethod
+    def _cache_invariants_match(
+        archive_path: Path,
+        manifest: dict[str, object],
+        dataset: DiscoveredDataset,
+        metadata: RemoteMetadata,
+    ) -> bool:
         if not archive_path.exists() or not manifest:
             return False
-
         if manifest.get("url") != dataset.url:
             return False
-
         if dataset.release_date and manifest.get("release_date") != dataset.release_date:
             return False
+        return metadata.content_length is None or _content_length_matches(manifest, metadata)
 
-        if metadata.content_length is not None and not _content_length_matches(manifest, metadata):
-            return False
-
+    @staticmethod
+    def _cache_validator_agrees(
+        manifest: dict[str, object],
+        dataset: DiscoveredDataset,
+        metadata: RemoteMetadata,
+    ) -> bool:
         if dataset.release_date:
             return True
-
         if metadata.etag and manifest.get("etag"):
             return manifest.get("etag") == metadata.etag
-
         if metadata.last_modified and manifest.get("last_modified"):
-            if manifest.get("last_modified") != metadata.last_modified:
-                return False
-            return _content_length_matches(manifest, metadata)
-
+            same_last_modified = manifest.get("last_modified") == metadata.last_modified
+            return same_last_modified and _content_length_matches(manifest, metadata)
         return False
 
 
