@@ -21,6 +21,7 @@ class FetchDiscoveryTest(unittest.TestCase):
 
     def test_discovers_policy_rates_csv_flat_link(self) -> None:
         """Anchor with matching label is parsed into a `DiscoveredDataset`."""
+
         class FakeFetcher(BisBulkFetcher):
             def _http_get_text(self, url: str) -> str:
                 return """
