@@ -98,3 +98,15 @@ exclude_lines = [
 
 [tool.bandit]
 exclude_dirs = ["tests", "data", "out", ".venv"]
+
+[tool.mypy]
+# Loose-but-useful baseline: catch the high-value bugs without burning time on
+# stub gaps in pandas/matplotlib/gingado. Tighten per-module as confidence grows.
+python_version = "3.11"
+files = ["src", "tests"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = false

@@ -99,7 +99,7 @@ class ReportTest(unittest.TestCase):
             payload = json.loads(result.summary_json_path.read_text(encoding="utf-8"))
             report_html = result.report_html_path.read_text(encoding="utf-8")
 
-            self.assertIsNotNone(result.speeches_chart_path)
+            assert result.speeches_chart_path is not None
             self.assertTrue(result.speeches_chart_path.exists())
             self.assertIn("speeches_extension", payload)
             self.assertIn("Speeches terms vs policy-rate moves", report_html)
