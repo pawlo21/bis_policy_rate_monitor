@@ -12,6 +12,7 @@ import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Protocol, cast
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -43,6 +44,19 @@ POLICY_SENTENCE_PATTERN = re.compile(
 SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9])")
 
 
+class TextClassificationPipeline(Protocol):
+    """Callable shape used by Hugging Face text-classification pipelines."""
+
+    def __call__(
+        self,
+        texts: list[str],
+        *,
+        batch_size: int,
+        truncation: bool,
+    ) -> list[Any]:
+        """Classify one batch of text snippets."""
+
+
 @dataclass(frozen=True)
 class SpeechSentimentAnalysis:
     """Transformer output used by JSON and HTML report writers."""
@@ -69,7 +83,7 @@ class SpeechSentimentAssessor:
         model_name: str = DEFAULT_SENTIMENT_MODEL,
         batch_size: int = 32,
         max_sentences_per_speech: int | None = 12,
-        pipeline_factory: Callable[[str], object] | None = None,
+        pipeline_factory: Callable[[str], TextClassificationPipeline] | None = None,
     ) -> None:
         """Configure the model and batching used for local inference."""
         self.model_name = model_name
@@ -342,7 +356,7 @@ class SpeechSentimentAssessor:
         fig.savefig(chart_path, dpi=160)
         plt.close(fig)
 
-    def _load_pipeline(self) -> object:
+    def _load_pipeline(self) -> TextClassificationPipeline:
         if self.pipeline_factory is not None:
             return self.pipeline_factory(self.model_name)
 
@@ -350,11 +364,13 @@ class SpeechSentimentAssessor:
             from transformers import pipeline  # pylint: disable=import-outside-toplevel
         except ImportError as error:
             raise RuntimeError(
-                "Install transformer support first: "
-                'python -m pip install -e ".[transformer]"'
+                'Install transformer support first: python -m pip install -e ".[transformer]"'
             ) from error
 
-        return pipeline("text-classification", model=self.model_name, tokenizer=self.model_name)
+        return cast(
+            TextClassificationPipeline,
+            pipeline("text-classification", model=self.model_name, tokenizer=self.model_name),
+        )
 
     def _split_text(self, text: str) -> list[str]:
         clean_text = re.sub(r"\s+", " ", text).strip()
@@ -377,7 +393,7 @@ def _dominant_stance(row: pd.Series) -> str:
     }
     if sum(counts.values()) == 0:
         return "unknown"
-    return max(counts, key=counts.get)
+    return max(counts, key=lambda stance: counts[stance])
 
 
 def _speech_score_columns() -> list[str]:

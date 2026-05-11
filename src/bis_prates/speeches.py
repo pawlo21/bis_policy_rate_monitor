@@ -63,6 +63,7 @@ class SpeechesAnalysis:
 def build_speeches_analysis(
     policy_rate_data: pd.DataFrame,
     chart_path: Path,
+    *,
     today: datetime | None = None,
     assess_sentiment: bool = False,
     sentiment_batch_size: int = 32,

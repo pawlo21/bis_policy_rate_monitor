@@ -35,7 +35,7 @@ PREFERRED_FREQUENCY = "D"
 
 
 @dataclass(frozen=True)
-class ReportResult:
+class ReportResult:  # pylint: disable=too-many-instance-attributes
     """Paths and counts produced by `PolicyRateReporter.report()`."""
 
     summary_csv_path: Path

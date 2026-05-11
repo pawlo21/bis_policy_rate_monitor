@@ -162,7 +162,7 @@ def _report(args: argparse.Namespace) -> int:
         speeches_provider = None
         if args.speeches:
 
-            def speeches_provider(report_data, chart_path):
+            def configured_speeches_provider(report_data, chart_path):
                 sentence_limit = (
                     None
                     if args.sentiment_sentences_per_speech == 0
@@ -175,6 +175,8 @@ def _report(args: argparse.Namespace) -> int:
                     sentiment_batch_size=args.sentiment_batch_size,
                     sentiment_sentences_per_speech=sentence_limit,
                 )
+
+            speeches_provider = configured_speeches_provider
 
         result = PolicyRateReporter(
             speeches_provider=speeches_provider,
