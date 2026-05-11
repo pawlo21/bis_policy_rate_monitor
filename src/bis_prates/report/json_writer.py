@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -28,7 +29,7 @@ def write_summary_json(
     `previous_date` reveals the actual gap (which may exceed one period when the
     series has missing observations).
     """
-    payload = {
+    payload: dict[str, Any] = {
         "generated_at_utc": utc_now(),
         "source_path": str(source_path),
         "start": start,
@@ -37,11 +38,20 @@ def write_summary_json(
         "rows": json_records(summary),
     }
     if speeches_analysis is not None:
-        payload["speeches_extension"] = {
+        speeches_payload: dict[str, Any] = {
             "chart_path": str(speeches_analysis.chart_path),
             "term_frequencies": json_records(speeches_analysis.term_frequencies),
             "policy_moves": json_records(speeches_analysis.policy_moves),
         }
+        if speeches_analysis.sentiment_analysis is not None:
+            sentiment = speeches_analysis.sentiment_analysis
+            speeches_payload["sentiment_assessment"] = {
+                "model_name": sentiment.model_name,
+                "chart_path": str(sentiment.chart_path),
+                "speech_scores": json_records(sentiment.speech_scores),
+                "monthly_scores": json_records(sentiment.monthly_scores),
+            }
+        payload["speeches_extension"] = speeches_payload
 
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 

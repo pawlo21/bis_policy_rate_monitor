@@ -23,6 +23,8 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from bis_prates.speech_sentiment import SpeechSentimentAnalysis, SpeechSentimentAssessor
+
 log = logging.getLogger(__name__)
 
 BIS_SPEECHES_BASE_URL = "https://www.bis.org/speeches/"
@@ -55,12 +57,17 @@ class SpeechesAnalysis:
     chart_path: Path
     term_frequencies: pd.DataFrame
     policy_moves: pd.DataFrame
+    sentiment_analysis: SpeechSentimentAnalysis | None = None
 
 
 def build_speeches_analysis(
     policy_rate_data: pd.DataFrame,
     chart_path: Path,
+    *,
     today: datetime | None = None,
+    assess_sentiment: bool = False,
+    sentiment_batch_size: int = 32,
+    sentiment_sentences_per_speech: int | None = 12,
 ) -> SpeechesAnalysis | None:
     """Build the speeches extension output, returning None when no data loads."""
     speeches = load_recent_speeches(today=today)
@@ -78,10 +85,26 @@ def build_speeches_analysis(
         start=term_frequencies["month"].min(),
     )
     render_speeches_chart(term_frequencies, policy_moves, chart_path)
+    sentiment_analysis = None
+    if assess_sentiment:
+        try:
+            sentiment_analysis = SpeechSentimentAssessor(
+                batch_size=sentiment_batch_size,
+                max_sentences_per_speech=sentiment_sentences_per_speech,
+            ).analyze(
+                speeches=speeches,
+                chart_path=chart_path.with_name("speeches_sentiment.png"),
+            )
+        # Transformer dependencies or model downloads should not break the
+        # required policy-rate report; the optional section is skipped instead.
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            log.warning("Skipping transformer speech sentiment assessment: %s", error)
+
     return SpeechesAnalysis(
         chart_path=chart_path,
         term_frequencies=term_frequencies,
         policy_moves=policy_moves,
+        sentiment_analysis=sentiment_analysis,
     )
 
 

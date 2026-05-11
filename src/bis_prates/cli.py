@@ -76,6 +76,32 @@ def build_parser() -> argparse.ArgumentParser:
             "include the optional BIS speeches mini-NLP section; use --speeches=true to enable it"
         ),
     )
+    report_parser.add_argument(
+        "--assess-sentiment",
+        dest="assess_sentiment",
+        action="store_true",
+        help=(
+            "when speeches are enabled, assess each speech's hawkish/dovish stance "
+            "with brjoey/CBSI-CentralBank-BERT and add a sentiment chart"
+        ),
+    )
+    report_parser.add_argument(
+        "--sentiment-sentences-per-speech",
+        type=int,
+        default=8,
+        metavar="N",
+        help=(
+            "maximum policy-relevant sentences to classify per speech; use 0 "
+            "to classify all matching sentences"
+        ),
+    )
+    report_parser.add_argument(
+        "--sentiment-batch-size",
+        type=int,
+        default=32,
+        metavar="N",
+        help="number of speech sentences sent to the transformer per batch",
+    )
     report_parser.set_defaults(func=_report)
 
     return parser
@@ -122,8 +148,36 @@ def _transform(_args: argparse.Namespace) -> int:
 
 
 def _report(args: argparse.Namespace) -> int:
+    if args.assess_sentiment and not args.speeches:
+        print("Report failed: --assess-sentiment requires --speeches=true", file=sys.stderr)
+        return 1
+    if args.sentiment_sentences_per_speech < 0:
+        print("Report failed: --sentiment-sentences-per-speech must be >= 0", file=sys.stderr)
+        return 1
+    if args.sentiment_batch_size < 1:
+        print("Report failed: --sentiment-batch-size must be >= 1", file=sys.stderr)
+        return 1
+
     try:
-        speeches_provider = build_speeches_analysis if args.speeches else None
+        speeches_provider = None
+        if args.speeches:
+
+            def configured_speeches_provider(report_data, chart_path):
+                sentence_limit = (
+                    None
+                    if args.sentiment_sentences_per_speech == 0
+                    else args.sentiment_sentences_per_speech
+                )
+                return build_speeches_analysis(
+                    report_data,
+                    chart_path,
+                    assess_sentiment=args.assess_sentiment,
+                    sentiment_batch_size=args.sentiment_batch_size,
+                    sentiment_sentences_per_speech=sentence_limit,
+                )
+
+            speeches_provider = configured_speeches_provider
+
         result = PolicyRateReporter(
             speeches_provider=speeches_provider,
         ).report(
@@ -140,6 +194,8 @@ def _report(args: argparse.Namespace) -> int:
     print(f"Chart: {result.chart_path}")
     if result.speeches_chart_path is not None:
         print(f"Speeches chart: {result.speeches_chart_path}")
+    if result.speech_sentiment_chart_path is not None:
+        print(f"Speech sentiment chart: {result.speech_sentiment_chart_path}")
     print(f"HTML report: {result.report_html_path}")
     print(f"Snapshot rows: {result.rows_written}")
     return 0
