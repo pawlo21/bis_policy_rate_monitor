@@ -336,24 +336,6 @@ extension path. If speech download or model inference fails, stale optional
 charts are removed and the required policy-rate report still completes.
 
 ## AI Usage Note
+I used Claude Opus 4.7 through Claude Code and GPT-5.5 through Codex as coding assistants. They generated much of the initial implementation and unit tests, and helped create the initial project structure, suggest refactoring options, and explore ideas for the optional speech and transformer extensions. The CLI workflow, data model, country code validation strategy, report outputs (HTML), and final code review were decided and verified manually.
 
-AI assistance accelerated implementation — module scaffolding, first-pass unit
-tests, refactoring options, and ideas for the optional speech and transformer
-extensions. Design ownership stayed manual: CLI workflow, data model, validation
-strategy, report outputs, and final code review were decided and verified by me.
-Several suggestions needed correction; the most material was the SDMX metadata
-path, where the initial approach did not reliably identify the correct
-area-code codelist — I rewrote it to discover the dataflow from the downloaded
-CSV, read the structure metadata, and use the proper `REF_AREA` codelist.
-Smaller corrections covered overly broad exception handling, missing docstrings,
-retry/cache behaviour for metadata calls, and the CLI control surface for the
-transformer workflow.
-
-Beyond the generated code, I drove design choices the assistant would not have
-reached on its own: parsing the BIS bulk-download page rather than hardcoding
-the file URL, storing the tidy dataset as Parquet, keeping missing observations
-in a separate audit CSV, and splitting an oversized report module into focused
-submodules. The engineering controls — deterministic tests, Ruff, mypy, Pylint,
-Bandit, license checks, pre-commit hooks, Dependabot, and GitHub Actions CI —
-were also added manually. AI produced code quickly; verification, corrections,
-and production-safety decisions were not delegated.
+After reviewing the generated code, I made several design corrections: discovering the BIS ZIP from the bulk-download page instead of hardcoding a URL, storing the tidy dataset as Parquet, keeping missing observations in a separate CSV audit file, showing policy-rate moves by individual country in the NLP chart instead of aggregating all selected countries together, and splitting an oversized report module into focused submodules. Important correction was the SDMX metadata logic: the AI-generated approach did not reliably identify the country/area codelist from the dataflow metadata. I rewrote it to discover the dataflow from the downloaded CSV, inspect the structure metadata, identify `REF_AREA`, and validate countries against the correct codelist. I also directed the production-safety checks and used AI to help design the quality pipeline and fix issues found by linting, formatting, typing, security, and test tools.
