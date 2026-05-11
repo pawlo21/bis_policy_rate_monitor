@@ -41,21 +41,22 @@ uv sync --extra transformer
 Then run the pipeline:
 
 ```bash
-uv run bis-prates fetch
-uv run bis-prates transform
-uv run bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
+source .venv/bin/activate
+bis-prates fetch
+bis-prates transform
+bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
 ```
 
 To include the speeches extension:
 
 ```bash
-uv run bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true
+bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true
 ```
 
 To include the optional transformer stance assessment:
 
 ```bash
-uv run bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true --assess-sentiment
+bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true --assess-sentiment
 ```
 
 The transformer run is configurable. The default is laptop-friendly: it
@@ -63,10 +64,10 @@ classifies up to 12 policy-relevant sentences per speech in batches of 32.
 
 ```bash
 # More complete but slower: classify all matching policy-relevant sentences
-uv run bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true --assess-sentiment --sentiment-sentences-per-speech 0
+bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true --assess-sentiment --sentiment-sentences-per-speech 0
 
 # Faster exploratory run
-uv run bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true --assess-sentiment --sentiment-sentences-per-speech 4 --sentiment-batch-size 32
+bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01" --speeches=true --assess-sentiment --sentiment-sentences-per-speech 4 --sentiment-batch-size 32
 ```
 
 If `uv` is not available, the project can also be installed with standard
@@ -82,20 +83,8 @@ python -m pip install -e .
 python -m pip install -e ".[transformer]"
 ```
 
-Then replace `uv run bis-prates ...` with `bis-prates ...`.
+## Output Files
 
-## CLI Workflow
-
-```bash
-# 1. Discover, download, and cache the latest BIS policy-rate flat CSV ZIP
-uv run bis-prates fetch
-
-# 2. Parse the raw archive into a tidy local dataset
-uv run bis-prates transform
-
-# 3. Generate report outputs for requested country/area codes
-uv run bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
-```
 
 Generated required outputs:
 
@@ -124,7 +113,11 @@ out/speeches_sentiment.png
 src/bis_prates/fetch.py              # BIS bulk-download discovery and caching
 src/bis_prates/transform.py          # raw CSV to tidy Parquet transformation
 src/bis_prates/metadata.py           # BIS SDMX metadata and REF_AREA validation
-src/bis_prates/report/               # summary data, charts, JSON, and HTML report
+src/bis_prates/report/core.py        # report orchestration
+src/bis_prates/report/data.py        # country selection and latest snapshot logic
+src/bis_prates/report/chart.py       # policy-rate chart rendering
+src/bis_prates/report/json_writer.py # summary JSON output
+src/bis_prates/report/html_writer.py # self-contained HTML report
 src/bis_prates/speeches.py           # BIS speeches keyword extension
 src/bis_prates/speech_sentiment.py   # optional transformer speech assessment
 tests/unit/                          # deterministic unit tests
@@ -179,7 +172,7 @@ observation, change from previous, metadata attributes, and data recency.
 Example:
 
 ```bash
-uv run bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
+bis-prates report --countries "US,EA,GB,JP,CH" --start "2015-01-01"
 ```
 
 ## Optional Extension 1: BIS SDMX Metadata
