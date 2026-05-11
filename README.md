@@ -302,6 +302,9 @@ Security and dependency practices:
 - SonarQube Cloud runs once per workflow on Python 3.11 to avoid duplicate
   analyses across the matrix.
 - Coverage XML is uploaded as a CI artefact for the Python 3.11 run.
+- The GitHub repository uses branch protection on `master`: direct commits are
+  blocked, changes are developed on feature branches, and updates are merged
+  after pull request review.
 
 ## Engineering Notes
 

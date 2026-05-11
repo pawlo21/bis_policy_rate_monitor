@@ -13,7 +13,7 @@ open a public GitHub issue**. Instead:
 
 - Use GitHub's private vulnerability reporting (Security tab → "Report a
   vulnerability") if it is enabled on the repository, **or**
-- Email **pawlo.gom@gmail.com** with subject prefix `[bis-prates security]`.
+- Email **pawel.gomulak@outlook.com** with subject prefix `[bis-prates security]`.
 
 Please include:
 
