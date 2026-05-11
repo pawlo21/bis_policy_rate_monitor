@@ -337,28 +337,23 @@ charts are removed and the required policy-rate report still completes.
 
 ## AI Usage Note
 
-I used AI coding assistance as an implementation accelerator. It helped with
-module scaffolding, first-pass unit tests, refactoring options, and ideas for
-the optional speech and transformer extensions. I kept ownership of the design:
-the CLI workflow, data model, validation strategy, report outputs, and final code
-review were decided and verified manually.
+AI assistance accelerated implementation — module scaffolding, first-pass unit
+tests, refactoring options, and ideas for the optional speech and transformer
+extensions. Design ownership stayed manual: CLI workflow, data model, validation
+strategy, report outputs, and final code review were decided and verified by me.
+Several suggestions needed correction; the most material was the SDMX metadata
+path, where the initial approach did not reliably identify the correct
+area-code codelist — I rewrote it to discover the dataflow from the downloaded
+CSV, read the structure metadata, and use the proper `REF_AREA` codelist.
+Smaller corrections covered overly broad exception handling, missing docstrings,
+retry/cache behaviour for metadata calls, and the CLI control surface for the
+transformer workflow.
 
-Several AI-generated suggestions needed correction before they were acceptable.
-One important example was the SDMX metadata path: the initial approach did not
-reliably identify the correct area-code codelist, so I rewrote it to discover
-the dataflow from the downloaded CSV, read the structure metadata, and use the
-proper `REF_AREA` codelist for validation. Other corrections included removing
-overly broad or duplicated exception handling, adding missing docstrings,
-improving retry/cache behaviour for metadata calls, and tightening the optional
-transformer workflow so it was controllable from the CLI.
-
-I also had to work beyond the generated code on several design choices: parsing
-the BIS bulk-download page instead of hardcoding the file URL, storing the tidy
-dataset as Parquet, keeping missing observations in a separate CSV audit file,
-and refactoring an oversized report module into smaller report components.
-
-I also added the engineering controls around the generated code: deterministic
-tests, Ruff formatting/linting, mypy, Pylint, Bandit, license checks,
-pre-commit hooks, Dependabot, and GitHub Actions CI. AI helped produce code
-quickly, but the verification, corrections, and production-safety decisions were
-manual.
+Beyond the generated code, I drove design choices the assistant would not have
+reached on its own: parsing the BIS bulk-download page rather than hardcoding
+the file URL, storing the tidy dataset as Parquet, keeping missing observations
+in a separate audit CSV, and splitting an oversized report module into focused
+submodules. The engineering controls — deterministic tests, Ruff, mypy, Pylint,
+Bandit, license checks, pre-commit hooks, Dependabot, and GitHub Actions CI —
+were also added manually. AI produced code quickly; verification, corrections,
+and production-safety decisions were not delegated.
